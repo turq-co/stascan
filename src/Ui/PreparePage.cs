@@ -114,7 +114,7 @@ sealed class PreparePage : UserControl, IPage
         _list.EndUpdate();
 
         long total = groups.Sum(g => g.WorkingSet);
-        var taken = baseline.TakenAt.ToString("MMM d, HH:mm", CultureInfo.InvariantCulture);
+        var taken = baseline.TakenAt.ToString("MMM d, HH:mm", CultureInfo.InvariantCulture) + (baseline.Pinned ? ", pinned" : "");
         _header.Text = groups.Count == 0
             ? $"No new programs since the snapshot ({taken}). You can still free up RAM."
             : $"Programs started since the snapshot ({taken}): {groups.Count}, using {Native.Mb((ulong)total)}. " +

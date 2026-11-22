@@ -8,6 +8,8 @@ sealed class AppServices
     public required Settings Settings { get; init; }
     public required Func<Baseline> GetBaseline { get; init; }
     public required Action RetakeBaseline { get; init; }
+    /// <summary>Pin the snapshot (keep it across reboots) or unpin it.</summary>
+    public required Action<bool> SetBaselinePinned { get; init; }
     public required Action<string, ToolTipIcon> Notify { get; init; }
     public required Action Cs2SettingChanged { get; init; }
     /// <summary>Change the theme: the window is recreated and reopened on the given section.</summary>

@@ -58,6 +58,7 @@ sealed class TrayContext : ApplicationContext
             Settings = _settings,
             GetBaseline = () => _baseline,
             RetakeBaseline = RetakeBaseline,
+            SetBaselinePinned = SetBaselinePinned,
             Notify = Notify,
             Cs2SettingChanged = () => { _affinity.Update(); if (_settings.Cs2SkipCpu0) Task.Run(_affinity.Tick); },
             ChangeTheme = ChangeTheme,
@@ -229,12 +230,21 @@ sealed class TrayContext : ApplicationContext
 
     void RetakeBaseline()
     {
-        _baseline = Baseline.Take();
+        // a retaken snapshot keeps the pinned state, so a pinned snapshot stays pinned
+        _baseline = Baseline.Take(pinned: _baseline.Pinned);
         UpdateTooltip();
         Notify($"New snapshot: {_baseline.Keys.Count} processes now count as clean.", ToolTipIcon.Info);
     }
 
-    void UpdateTooltip() => _tray.Text = $"StaScan: snapshot from {_baseline.TakenAt.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)}";
+    void SetBaselinePinned(bool pinned)
+    {
+        _baseline.SetPinned(pinned);
+        UpdateTooltip();
+    }
+
+    void UpdateTooltip() => _tray.Text = _baseline.Pinned
+        ? $"StaScan: pinned snapshot from {_baseline.TakenAt.ToString("MMM d", System.Globalization.CultureInfo.InvariantCulture)}"
+        : $"StaScan: snapshot from {_baseline.TakenAt.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)}";
 
     void Notify(string text, ToolTipIcon icon)
     {

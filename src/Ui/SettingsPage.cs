@@ -7,7 +7,7 @@ sealed class SettingsPage : UserControl, IPage
 {
     readonly AppServices _app;
     readonly Label _snapshot;
-    readonly CheckBox _autostart;
+    readonly CheckBox _autostart, _pinned;
     readonly TextBox _whitelist;
     readonly Label _saved;
     readonly RadioButton _themeSystem, _themeLight, _themeDark;
@@ -42,7 +42,16 @@ sealed class SettingsPage : UserControl, IPage
         body.Controls.Add(Theme.Section("Clean-state snapshot"));
         _snapshot = new Label { AutoSize = true, ForeColor = Theme.P.Muted, Margin = new Padding(0, 0, 0, 8) };
         body.Controls.Add(_snapshot);
+        _pinned = Theme.Check("Pin this snapshot (keep it across reboots instead of taking a new one at sign-in)", false);
+        _pinned.CheckedChanged += (_, _) =>
+        {
+            if (_loading) return;
+            _app.SetBaselinePinned(_pinned.Checked);
+            OnShown();
+        };
+        body.Controls.Add(_pinned);
         var retake = Theme.Secondary("Retake snapshot (treat the current state as clean)");
+        retake.Margin = new Padding(0, 8, 0, 0);
         retake.Click += (_, _) => { _app.RetakeBaseline(); OnShown(); };
         body.Controls.Add(retake);
 
@@ -121,7 +130,11 @@ sealed class SettingsPage : UserControl, IPage
         _loading = true;
         var b = _app.GetBaseline();
         _snapshot.Text = $"Taken {b.TakenAt.ToString("MMM d, yyyy HH:mm", System.Globalization.CultureInfo.InvariantCulture)}, {b.Keys.Count} processes. " +
-                         "Anything started later is offered for closing during game prep.";
+                         "Anything started later is offered for closing during game prep.\n" +
+                         (b.Pinned
+                             ? "Pinned: this snapshot is kept across reboots until you unpin or retake it."
+                             : "Not pinned: a new snapshot is taken after every reboot, one minute after you sign in.");
+        _pinned.Checked = b.Pinned;
         _autostart.Checked = Autostart.IsEnabled;
         _whitelist.Text = string.Join(Environment.NewLine, _app.Settings.Whitelist);
         _saved.Text = "";

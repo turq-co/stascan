@@ -9,7 +9,7 @@ StaScan is a lightweight system tray utility for Windows 10 and 11. After a sess
 ## Features
 
 ### Game prep
-- **Clean-state snapshot.** At sign-in StaScan records which processes are running and treats them as the baseline.
+- **Clean-state snapshot.** At sign-in StaScan records which processes are running and treats them as the baseline. You can **pin** a snapshot in Settings to keep it across reboots: StaScan then compares against that saved state every time instead of taking a new snapshot at sign-in. Processes are matched by executable path, so a pinned snapshot stays valid after a restart.
 - **Close what was opened later.** Every program started after the snapshot is listed with its process count and memory usage. Checked programs are first asked to close gracefully. Anything still running after 5 seconds is terminated.
 - **Memory cleanup.** Empties process working sets, flushes the modified page list and the file system cache, and purges the standby list (the same operations as RAMMap's *Empty* commands or ISLC).
 - **Explorer restart.** Restarts `explorer.exe` and the taskbar without elevated rights.
@@ -87,7 +87,7 @@ Smart App Control on Windows 11 blocks unsigned executables that have no reputat
 | **Game prep** | Review the list of new programs, choose extra actions, click **Prepare for gaming** |
 | **Background services** | Toggle individual services. The **Include in prep** checkbox adds a service to the Game prep run, provided the option at the top of the section is enabled |
 | **USB ports** | Replug a device and click **Refresh** to see the result |
-| **Settings** | Theme, snapshot, autostart, whitelist, log folder |
+| **Settings** | Theme, snapshot (retake or pin across reboots), autostart, whitelist, log folder |
 | Tray menu → **Background services ▸** | Toggle any service in one click, disable permanently, or restore all |
 
 Settings, the snapshot and the log are stored in `%LOCALAPPDATA%\StaScan`.
