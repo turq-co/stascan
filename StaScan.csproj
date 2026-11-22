@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>StaScan</AssemblyName>
+    <RootNamespace>StaScan</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Без собственного exe: запускаем через подписанный dotnet.exe, иначе Smart App Control
+         может заблокировать неподписанный StaScan.exe. -->
+    <UseAppHost>false</UseAppHost>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <Version>1.0.0</Version>
+    <!-- Приложение живёт в трее: один поток сборщика мусора вместо фонового и быстрый старт -->
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredCompilationQuickJitForLoops>true</TieredCompilationQuickJitForLoops>
+    <SatelliteResourceLanguages>ru;en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+</Project>
