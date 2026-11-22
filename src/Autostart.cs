@@ -62,10 +62,49 @@ static class Autostart
         return ok;
     }
 
-    /// <summary>If autostart is enabled, refreshes the launch path (in case the app was moved).</summary>
-    public static void RefreshIfEnabled()
+    /// <summary>
+    /// Repairs the autostart task only when the program it points to no longer exists (for example, after
+    /// moving or reinstalling StaScan). A working task is never rewritten, so launching some other copy of
+    /// StaScan (a build folder, a download) cannot hijack autostart.
+    /// </summary>
+    public static void RepairIfBroken()
     {
-        if (IsEnabled) Enable();
+        if (!IsEnabled) return;
+        var command = TaskCommand();
+        if (command != null && File.Exists(command)) return;
+        Log.Write($"Autostart task points to a missing program ({command ?? "unknown"}), recreating it");
+        Enable();
+    }
+
+    /// <summary>The executable the autostart task launches, read from the task definition.</summary>
+    static string? TaskCommand()
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("schtasks.exe", $"/query /tn \"{MainTask}\" /xml")
+            {
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            using var p = Process.Start(psi)!;
+            var xml = p.StandardOutput.ReadToEnd();
+            p.WaitForExit(10000);
+            var m = System.Text.RegularExpressions.Regex.Match(xml, "<Command>(.*?)</Command>");
+            return m.Success ? System.Net.WebUtility.HtmlDecode(m.Groups[1].Value).Trim('"') : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Removes both scheduled tasks (used by the uninstaller).</summary>
+    public static void RemoveAll()
+    {
+        if (IsEnabled) Disable();
+        if (Schtasks($"/query /tn \"{ExplorerTask}\"") == 0) Schtasks($"/delete /tn \"{ExplorerTask}\" /f");
     }
 
     public static bool RunExplorerTask()

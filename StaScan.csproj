@@ -9,15 +9,23 @@
     <AssemblyName>StaScan</AssemblyName>
     <RootNamespace>StaScan</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <!-- No app host exe: StaScan runs through the Microsoft-signed dotnet.exe, otherwise Smart App Control
-         may block an unsigned StaScan.exe. -->
-    <UseAppHost>false</UseAppHost>
+    <ApplicationIcon>assets\StaScan.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <Version>1.0.0</Version>
+
+    <Version>1.1.0</Version>
+    <Product>StaScan</Product>
+    <Description>Get your Windows PC back to a clean, game-ready state without rebooting</Description>
+    <Copyright>Copyright (c) 2026 turq-co. Licensed under GPL-3.0.</Copyright>
+
     <!-- The app lives in the tray: no background GC thread, faster startup -->
     <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
     <TieredCompilationQuickJitForLoops>true</TieredCompilationQuickJitForLoops>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- the same icon is used for the window and the tray -->
+    <EmbeddedResource Include="assets\StaScan.ico" LogicalName="StaScan.ico" />
+  </ItemGroup>
 
 </Project>

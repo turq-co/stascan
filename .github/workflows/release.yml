@@ -1,0 +1,70 @@
+name: Release
+
+# Push a version tag to publish a release:
+#   git tag v1.1.0
+#   git push origin v1.1.0
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)build, for example v1.1.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Build app and installer
+        shell: pwsh
+        run: |
+          $version = $env:TAG.TrimStart('v')
+          ./build.ps1 -Version $version
+          Compress-Archive -Path dist/StaScan.exe, LICENSE, THIRD_PARTY_NOTICES.md -DestinationPath "dist/StaScan-$version-portable.zip"
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = $env:TAG.TrimStart('v')
+          $files = @("dist/StaScan-Setup-$version.exe", "dist/StaScan-$version-portable.zip")
+          $notes = @"
+          ## Download
+
+          - **StaScan-Setup-$version.exe**: installer (recommended). Installs to Program Files, adds a Start menu shortcut and can start StaScan with Windows.
+          - **StaScan-$version-portable.zip**: a single StaScan.exe with no installation.
+
+          Requires Windows 10 1809 or later, 64-bit, and an administrator account. No .NET installation is needed.
+
+          The files are not code-signed, so Windows SmartScreen may show a warning: click **More info → Run anyway**. If Smart App Control is on, Windows may block them.
+          "@
+          gh release view $env:TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:TAG @files --clobber
+          } else {
+            gh release create $env:TAG @files --title "StaScan $version" --notes $notes --generate-notes
+          }

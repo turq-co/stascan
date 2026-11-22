@@ -25,6 +25,9 @@ sealed class Settings
 
     public ThemeMode Theme { get; set; } = ThemeMode.System;
 
+    /// <summary>Executable paths whose tray icon was already made always visible (done once per location).</summary>
+    public List<string> TrayPromotedFor { get; set; } = new();
+
     /// <summary>Pause background services marked "Include in prep" when "Prepare for gaming" is clicked.</summary>
     public bool PauseBackground { get; set; }
 

@@ -58,11 +58,25 @@ Shows how many chips (hubs and the chipset) sit between your mouse or keyboard a
 
 ## Requirements
 
-- Windows 10 or Windows 11, 64-bit
+- Windows 10 1809 or later, or Windows 11, 64-bit
 - An administrator account. StaScan runs elevated so that it can close other processes, purge the standby list and manage services.
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) to build the app (`winget install Microsoft.DotNet.SDK.8`). The .NET 8 Desktop Runtime is enough to run it.
+- No .NET installation is needed: the release build is self-contained.
 
 ## Installation
+
+Download the latest **StaScan-Setup-x.y.z.exe** from [Releases](https://github.com/turq-co/stascan/releases/latest) and run it. The installer:
+
+- installs StaScan to `C:\Program Files\StaScan` and adds a Start menu shortcut;
+- optionally starts StaScan when you sign in. This creates a Task Scheduler task named `StaScan` that runs with highest privileges 60 seconds after sign-in, so there is no UAC prompt and the snapshot is taken once your startup apps have settled;
+- makes the tray icon always visible on Windows 11 the first time StaScan starts (you can still hide it in **Settings → Personalization → Taskbar → Other system tray icons**).
+
+To upgrade, run a newer installer over the existing installation. A **portable** zip with a single `StaScan.exe` is also attached to each release.
+
+The builds are not code-signed, so Windows SmartScreen may show a warning: click **More info → Run anyway**. If Smart App Control is turned on, Windows may block unsigned apps entirely; you will then see event ID 3077 in the `Microsoft-Windows-CodeIntegrity/Operational` log.
+
+### Building from source
+
+Requires the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) (`winget install Microsoft.DotNet.SDK.8`) and, for the installer, [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`winget install JRSoftware.InnoSetup`).
 
 ```powershell
 git clone https://github.com/turq-co/stascan.git
@@ -70,14 +84,18 @@ cd stascan
 .\build.ps1
 ```
 
-1. Run `dist\StaScan.lnk` and accept the UAC prompt.
-2. Open **Settings** and enable **Start with Windows**.
+This produces `dist\StaScan.exe` and, when Inno Setup is installed, `dist\StaScan-Setup-<version>.exe`.
 
-This registers a Task Scheduler task named `StaScan` that runs with highest privileges 60 seconds after sign-in. From then on there is no UAC prompt, and the snapshot is taken once your startup apps have settled. While the task exists, the shortcut also launches StaScan through it.
+### Publishing a release
 
-### Why there is no `StaScan.exe`
+Releases are built by GitHub Actions ([`.github/workflows/release.yml`](.github/workflows/release.yml)). Bump `<Version>` in `StaScan.csproj`, then push a matching tag:
 
-Smart App Control on Windows 11 blocks unsigned executables that have no reputation with Microsoft, and every rebuild produces a new file hash. StaScan therefore ships as `StaScan.dll` and is launched through the Microsoft-signed `dotnet.exe`. If Smart App Control blocks the DLL as well, you will see event ID 3077 in the `Microsoft-Windows-CodeIntegrity/Operational` log. In that case, either sign the build with a trusted code-signing certificate or turn Smart App Control off.
+```powershell
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+The workflow builds the app and the installer and attaches both to a new GitHub release.
 
 ## Usage
 
@@ -115,9 +133,9 @@ The Game prep summary includes the **nonpaged pool** size. It is usually 300–8
 
 ## Uninstalling
 
-1. **Background services** → **Restore all**.
-2. **Settings** → turn off **Start with Windows**.
-3. Tray menu → **Exit**. Then delete the project folder and `%LOCALAPPDATA%\StaScan`.
+Uninstall StaScan from **Settings → Apps → Installed apps**. The uninstaller stops StaScan, restores every background service it paused or disabled, and removes its scheduled tasks. Your settings and log stay in `%LOCALAPPDATA%\StaScan`; delete that folder if you no longer need them.
+
+For the portable version: **Background services → Restore all**, **Settings →** turn off **Start with Windows**, exit StaScan from the tray menu, then delete `StaScan.exe` and `%LOCALAPPDATA%\StaScan`.
 
 ## License
 

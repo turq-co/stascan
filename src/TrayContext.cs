@@ -42,7 +42,7 @@ sealed class TrayContext : ApplicationContext
 
         _tray = new NotifyIcon
         {
-            Icon = TrayIcon.Create(),
+            Icon = TrayIcon.CreateSmall(),
             ContextMenuStrip = _menu,
             Visible = true,
         };
@@ -66,7 +66,7 @@ sealed class TrayContext : ApplicationContext
 
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
 
-        Autostart.RefreshIfEnabled();
+        Autostart.RepairIfBroken();
         _ = AutoRestoreAfterReboot();
 
         if (!reused && Environment.TickCount64 > TimeSpan.FromMinutes(10).TotalMilliseconds)
@@ -74,6 +74,9 @@ sealed class TrayContext : ApplicationContext
             Notify("The snapshot was taken now rather than at sign-in, so programs that are already open count as clean. " +
                    "Turn on \"Start with Windows\" in Settings.", ToolTipIcon.Info);
         }
+
+        // Explorer registers the tray entry a moment after the icon appears, then we can promote it
+        Task.Delay(TimeSpan.FromSeconds(10)).ContinueWith(_ => TrayIcon.PromoteOnce(_settings));
 
         // right after startup, give the memory used during initialization back to the system
         TrimMemory();
@@ -286,19 +289,70 @@ sealed class TrayContext : ApplicationContext
 
 static class TrayIcon
 {
-    /// <summary>The icon is drawn in code so no .ico file is needed: a green circle with a play triangle.</summary>
-    public static Icon Create()
+    /// <summary>The app icon (assets/StaScan.ico, embedded in the assembly) at the requested size.</summary>
+    public static Icon Create(Size? size = null)
     {
-        using var bmp = new Bitmap(32, 32);
-        using (var g = Graphics.FromImage(bmp))
+        using var stream = typeof(TrayIcon).Assembly.GetManifestResourceStream("StaScan.ico")!;
+        return size is { } s ? new Icon(stream, s) : new Icon(stream);
+    }
+
+    /// <summary>Icon for the notification area at the current DPI.</summary>
+    public static Icon CreateSmall() => Create(SystemInformation.SmallIconSize);
+
+    /// <summary>
+    /// Windows 11 hides new tray icons in the overflow menu. The first time StaScan runs from a given location it
+    /// marks its own entry in "Control Panel\NotifyIconSettings" as promoted, so the icon is always visible on the
+    /// taskbar. This is done only once: if the user hides the icon later, that choice is respected.
+    /// </summary>
+    public static void PromoteOnce(Settings settings)
+    {
+        var exe = Environment.ProcessPath;
+        if (exe == null || Path.GetFileName(exe).Equals("dotnet.exe", StringComparison.OrdinalIgnoreCase)) return;
+        if (settings.TrayPromotedFor.Contains(exe, StringComparer.OrdinalIgnoreCase)) return;
+
+        try
         {
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.Clear(Color.Transparent);
-            using var bg = new SolidBrush(Color.FromArgb(34, 197, 94));
-            g.FillEllipse(bg, 1, 1, 30, 30);
-            using var fg = new SolidBrush(Color.White);
-            g.FillPolygon(fg, new[] { new PointF(12, 8), new PointF(25, 16), new PointF(12, 24) });
+            using var root = Registry.CurrentUser.OpenSubKey(@"Control Panel\NotifyIconSettings");
+            if (root == null) return; // Windows 10 or older Windows 11 builds: nothing to do
+            foreach (var name in root.GetSubKeyNames())
+            {
+                using var key = root.OpenSubKey(name, writable: true);
+                if (key?.GetValue("ExecutablePath") is not string path ||
+                    !string.Equals(ExpandKnownFolder(path), exe, StringComparison.OrdinalIgnoreCase)) continue;
+
+                if (key.GetValue("IsPromoted") is not int promoted || promoted == 0)
+                    key.SetValue("IsPromoted", 1, RegistryValueKind.DWord);
+                settings.TrayPromotedFor.Add(exe);
+                settings.Save();
+                Log.Write("Tray icon set to always visible");
+                return;
+            }
         }
-        return Icon.FromHandle(bmp.GetHicon());
+        catch (Exception ex)
+        {
+            Log.Write($"Could not make the tray icon always visible: {ex.Message}");
+        }
+    }
+
+    [DllImport("shell32.dll")]
+    static extern int SHGetKnownFolderPath([MarshalAs(UnmanagedType.LPStruct)] Guid id, uint flags, IntPtr token, out IntPtr path);
+
+    /// <summary>
+    /// Explorer stores paths under known folders as "{FOLDERID}\rest", for example
+    /// "{6D809377-6AF0-444B-8957-A3773F02200E}\StaScan\StaScan.exe" for Program Files.
+    /// </summary>
+    static string ExpandKnownFolder(string path)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(path, @"^\{([0-9A-Fa-f-]{36})\}\\(.*)$");
+        if (!m.Success) return path;
+        if (SHGetKnownFolderPath(Guid.Parse(m.Groups[1].Value), 0, IntPtr.Zero, out var ptr) != 0) return path;
+        try
+        {
+            return Path.Combine(Marshal.PtrToStringUni(ptr)!, m.Groups[2].Value);
+        }
+        finally
+        {
+            Marshal.FreeCoTaskMem(ptr);
+        }
     }
 }
