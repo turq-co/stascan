@@ -1,23 +1,70 @@
 # StaScan
 
-Приложение в трее, которое готовит ПК к игре без перезагрузки.
+**Get your Windows PC back to a clean, game-ready state without rebooting.**
 
-1. При входе в Windows запоминает «чистый» набор процессов.
-2. Правый клик по значку → **Подготовить к игре** (или двойной клик). Открывается список программ, которые появились после снимка: браузер, мессенджеры, редакторы и всё, что они оставили в фоне.
-3. Отмеченные программы сначала получают просьбу закрыться (как по крестику). Что не закрылось за 5 секунд, завершается принудительно.
-4. По галочкам:
-   - **очистка ОЗУ**: рабочие наборы процессов, modified list, кэш файлов и standby list (то же, что RAMMap → Empty или ISLC);
-   - **перезапуск explorer.exe**;
-   - **сброс DNS-кэша и удаление файлов старше суток из %TEMP%**.
-5. Итог приходит уведомлением: сколько закрыто, сколько ОЗУ освободилось, размер nonpaged pool.
+StaScan is a lightweight system tray utility for Windows 10 and 11. After a session of browsing, chatting and working, background processes, bloated memory caches and Windows housekeeping tasks often drag frame rates down until the next restart. StaScan takes a snapshot of your system right after you sign in. Later, one click closes everything started since then, flushes memory and quiets Windows background services so you can return to your game.
 
-## Требования
+> The user interface is currently in Russian. This README gives the original labels with English translations where it helps.
 
-- Windows 10 или 11, 64-bit.
-- Учётная запись администратора: StaScan работает с повышенными правами (закрытие чужих процессов, очистка standby list, службы).
-- Для сборки: [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) (`winget install Microsoft.DotNet.SDK.8`). Для запуска достаточно .NET 8 Desktop Runtime.
+![Game prep](docs/screenshots/game-prep-light.png)
 
-## Установка
+## Features
+
+### Game prep
+- **Clean-state snapshot.** At sign-in StaScan records which processes are running and treats them as the baseline.
+- **Close what was opened later.** Every program started after the snapshot is listed with its process count and memory usage. Checked programs are first asked to close gracefully. Anything still running after 5 seconds is terminated.
+- **Memory cleanup.** Empties process working sets, flushes the modified page list and the file system cache, and purges the standby list (the same operations as RAMMap's *Empty* commands or ISLC).
+- **Explorer restart.** Restarts `explorer.exe` and the taskbar without elevated rights.
+- **DNS and temp cleanup.** Flushes the DNS resolver cache and deletes files older than 24 hours from `%TEMP%`.
+- **CS2 affinity.** Optionally removes CPU 0 from the affinity mask of `cs2.exe`. This also applies when the game is launched later.
+- **Driver leak hint.** The summary shows the size of the kernel nonpaged pool, so you can tell when only a reboot will help (see [Troubleshooting](#troubleshooting)).
+
+### Background services
+Pause or disable Windows components that compete with your game for CPU, disk and network:
+
+| Group | Items |
+|---|---|
+| Updates and indexing | Windows Update pause (same as *Pause updates* in Settings), `wuauserv`, `UsoSvc`, `BITS`, Delivery Optimization (`DoSvc`), Windows Search (`WSearch`) |
+| Telemetry and maintenance | `DiagTrack`, Compatibility Appraiser, CEIP, disk diagnostics, scheduled drive optimization, Automatic Maintenance |
+| Other | `SysMain` (Superfetch), Xbox Game Bar background recording |
+
+Each item has its own toggle in the main window and in the tray menu:
+
+- **For this gaming session.** The item is paused until you turn it back on. If you forget, StaScan restores it automatically after the next reboot.
+- **Permanently.** The item stays disabled until you restore it.
+- **Restore all.** StaScan remembers the original state of every item it changes and restores exactly that state.
+- **Changed outside StaScan.** Items disabled elsewhere are labelled *отключено в Windows* (disabled in Windows). Turning them on applies the Windows default.
+
+Microsoft Defender is intentionally never touched.
+
+![Background services](docs/screenshots/background-services-dark.png)
+
+### USB port check
+Shows how many chips (hubs and the chipset) sit between your mouse or keyboard and the CPU, and whether your motherboard has USB ports wired directly to the processor:
+
+- **0 chips:** connected directly to the CPU.
+- **1 chip:** through the chipset.
+- **2 or more:** through a hub as well (monitor, keyboard or front-panel hubs).
+
+![USB ports](docs/screenshots/usb-ports-light.png)
+
+### Interface
+- A single main window with four sections: Game prep, Background services, USB ports and Settings.
+- **Themes.** Light and dark themes, or follow the Windows app theme automatically.
+- **Tray menu.** Quick access to every action, including a per-service toggle submenu.
+- **Small footprint.** About 20 MB of RAM and near-zero CPU while idle in the tray. Memory is returned to the system when the window is closed.
+
+| Settings | Tray submenu |
+|---|---|
+| ![Settings](docs/screenshots/settings-dark.png) | ![Tray menu](docs/screenshots/tray-menu-dark.png) |
+
+## Requirements
+
+- Windows 10 or Windows 11, 64-bit
+- An administrator account. StaScan runs elevated so that it can close other processes, purge the standby list and manage services.
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) to build the app (`winget install Microsoft.DotNet.SDK.8`). The .NET 8 Desktop Runtime is enough to run it.
+
+## Installation
 
 ```powershell
 git clone https://github.com/turq-co/stascan.git
@@ -25,67 +72,59 @@ cd stascan
 .\build.ps1
 ```
 
-Запустите `dist\StaScan.lnk` (Windows спросит права администратора), затем в разделе **«Настройки»** включите **«Запускать при входе в Windows»**. Приложение регистрирует задачу планировщика `StaScan` с наивысшими правами и задержкой 60 секунд после входа: окна UAC больше не будет, а снимок сделается, когда автозагрузка уже отработала. Когда задача есть, ярлык тоже запускает приложение через неё, без UAC.
+1. Run `dist\StaScan.lnk` and accept the UAC prompt.
+2. Open **Настройки** (Settings) and enable **Запускать при входе в Windows** (start with Windows).
 
-Собственного `StaScan.exe` нет специально. Smart App Control в Windows 11 блокирует неподписанные exe без «репутации» у Microsoft, а при каждой пересборке хеш меняется. Поэтому ярлык и задача запускают `dotnet.exe "dist\StaScan.dll"`. Если включён Smart App Control, он может заблокировать и dll: тогда в журнале `Microsoft-Windows-CodeIntegrity/Operational` появится событие 3077. Помогает только подпись кода доверенным сертификатом или отключение Smart App Control.
+This registers a Task Scheduler task named `StaScan` that runs with highest privileges 60 seconds after sign-in. From then on there is no UAC prompt, and the snapshot is taken once your startup apps have settled. While the task exists, the shortcut also launches StaScan through it.
 
-## Ограничения
+### Why there is no `StaScan.exe`
 
-- Если вы работаете под обычной учётной записью и вводите в окне UAC пароль **другого** администратора, StaScan будет работать от его имени. Тогда настройки и лог окажутся в его профиле, а пункт «Фоновая запись Xbox Game Bar» изменит его настройки, а не ваши.
-- Таблица USB-контроллеров покрывает популярные платформы Intel и AMD. Неизвестный контроллер показывается как «нет в базе» и считается подключённым через чипсет.
-- CS2 и античиты (например, FACEIT) могут запретить менять привязку процесса к ядрам. StaScan в этом случае покажет предупреждение.
+Smart App Control on Windows 11 blocks unsigned executables that have no reputation with Microsoft, and every rebuild produces a new file hash. StaScan therefore ships as `StaScan.dll` and is launched through the Microsoft-signed `dotnet.exe`. If Smart App Control blocks the DLL as well, you will see event ID 3077 in the `Microsoft-Windows-CodeIntegrity/Operational` log. In that case, either sign the build with a trusted code-signing certificate or turn Smart App Control off.
 
-## Главное окно
+## Usage
 
-Открывается двойным кликом по значку или пунктом **«Открыть StaScan»**. Слева разделы:
+| Where | What it does |
+|---|---|
+| Double-click the tray icon | Opens the main window on Game prep |
+| **Подготовка к игре** (Game prep) | Review the list of new programs, choose extra actions, click **Подготовить к игре** (Prepare for gaming) |
+| **Фоновые службы** (Background services) | Toggle individual services. The **В подготовке** (include in prep) checkbox adds a service to the Game prep run, provided the option at the top of the section is enabled |
+| **USB-порты** (USB ports) | Replug a device and click **Обновить** (Refresh) to see the result |
+| **Настройки** (Settings) | Theme, snapshot, autostart, whitelist, log folder |
+| Tray menu → **Фоновые службы ▸** | Toggle any service in one click, disable permanently, or restore all |
 
-- **Подготовка к игре**: список новых программ и галки дополнительных действий.
-- **Фоновые службы**: у каждой службы свой переключатель (см. ниже).
-- **USB-порты**: через сколько чипов мышь и клавиатура подключены к процессору.
-- **Настройки**: снимок «чистого» состояния, автозапуск, белый список, папка с логом (`%LOCALAPPDATA%\StaScan`).
+Settings, the snapshot and the log are stored in `%LOCALAPPDATA%\StaScan`.
 
-## Меню значка
+## Safety
 
-- **Подготовить к игре…**
-- **Фоновые службы ▸**: каждая служба отдельным пунктом. Галочка означает «работает»; клик приостанавливает службу на время игры, повторный клик возвращает. Там же «Отключить насовсем ▸», «Приостановить отмеченные», «Вернуть всё как было» и «Открыть список…».
-- **USB-порты мыши и клавиатуры…**
-- **Открыть StaScan**, **Настройки…**, **Выход**
+StaScan never closes:
 
-## Фоновые службы Windows
+- processes in other sessions, or Windows services;
+- anything located under `C:\Windows`;
+- critical system processes (`csrss`, `dwm`, `svchost`, `explorer` and others);
+- processes whose executable path cannot be read;
+- programs on the whitelist (Steam, Discord, NVIDIA, Epic Games, Battle.net, OBS, MSI Afterburner/RTSS are included by default);
+- StaScan itself.
 
-Раздел **«Фоновые службы»** в главном окне или подменю в трее. Показывает, что сейчас работает, и позволяет приостановить:
+## Limitations
 
-- **обновления и индексация**: пауза Windows Update (как кнопка в Параметрах), службы wuauserv, UsoSvc, BITS, DoSvc, WSearch;
-- **телеметрия и обслуживание**: DiagTrack, задачи Compatibility Appraiser, CEIP, диагностики дисков, оптимизации дисков, автоматическое обслуживание;
-- **прочее**: SysMain и фоновая запись Xbox Game Bar.
+- If you use a standard account and enter **another** administrator's credentials at the UAC prompt, StaScan runs as that administrator. Its settings and log then live in that profile, and the Xbox Game Bar option changes that user's settings, not yours.
+- The USB controller table covers common Intel and AMD platforms. An unknown controller is shown as *нет в базе* (not in database) and treated as chipset-attached.
+- CS2 and some anti-cheat systems (for example FACEIT) may block changes to process affinity. StaScan reports a warning when this happens.
 
-Режимы:
+## Troubleshooting
 
-- **На время игры**: переключатель у службы, пункт в трее или галка «В подготовке» с кнопкой «Подготовить к игре». После перезагрузки StaScan сам всё вернёт.
-- **Насовсем**: «⋯» у службы или «Отключить насовсем ▸» в трее. Остаётся, пока не вернёте (переключателем, через «⋯» или «Вернуть всё как было»).
+The Game prep summary includes the **nonpaged pool** size. It is usually 300–800 MB. If it exceeds 1.5 GB and keeps growing between sessions, a driver is most likely leaking kernel memory. Network, RGB lighting, anti-cheat and outdated GPU drivers are common causes. No user-mode tool can reclaim that memory. Update or remove the offending driver; `poolmon` from the Windows Driver Kit can help identify it.
 
-Если пункт отключён не через StaScan (например, вручную в «Службах»), он помечен «отключено в Windows». Переключатель включит его со значением Windows по умолчанию.
+## Uninstalling
 
-StaScan запоминает исходное состояние каждого пункта и возвращает именно его. Защитник Windows не трогается. Часть задач защищена системой, и Windows может не дать их отключить: такие пункты попадут в список ошибок. Служба WaaSMedic умеет сама включать Windows Update обратно.
+1. **Фоновые службы** (Background services) → **Вернуть всё как было** (Restore all).
+2. **Настройки** (Settings) → turn off **Запускать при входе в Windows** (start with Windows).
+3. Tray menu → **Выход** (Exit). Then delete the project folder and `%LOCALAPPDATA%\StaScan`.
 
-## Что никогда не трогается
+## License
 
-Процессы других сессий и служб, всё из `C:\Windows\`, системные процессы (csrss, dwm, svchost, explorer и т.д.), процессы без доступного пути и сам StaScan.
+StaScan is licensed under the [GNU General Public License v3.0](LICENSE). You may use, study, modify and redistribute it; derivative works must also be released under GPL-3.0.
 
-## Удаление
+## Acknowledgements
 
-1. Раздел «Фоновые службы» → **«Вернуть всё как было»**.
-2. Раздел «Настройки» → снимите галку **«Запускать при входе в Windows»**.
-3. Меню значка → **«Выход»**, затем удалите папку проекта и `%LOCALAPPDATA%\StaScan`.
-
-## Лицензия
-
-StaScan распространяется под [GNU GPL v3.0](LICENSE): код можно использовать и изменять, но изменённые версии тоже должны оставаться открытыми под GPL-3.0.
-
-## Благодарности
-
-Проверка USB-портов основана на [cpu-direct-usb](https://github.com/MariusHeier/cpu-direct-usb) (MIT, © 2025 Marius Heier), см. [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-## Если не помогло
-
-В итоговом отчёте есть **nonpaged pool**. Обычно это 300–800 МБ. Если значение больше 1.5 ГБ и растёт от сессии к сессии, память утекает в каком-то драйвере (часто сетевом, RGB-подсветки, античита или старой версии драйвера видеокарты). Такую утечку не освободить без перезагрузки, поможет только обновление или удаление виновного драйвера (найти его можно утилитой `poolmon`).
+The USB port check is based on [cpu-direct-usb](https://github.com/MariusHeier/cpu-direct-usb) by Marius Heier (MIT). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
