@@ -5,8 +5,8 @@ namespace StaScan;
 static class ProcessKiller
 {
     /// <summary>
-    /// Сначала просит окна закрыться (как крестик), через 5 секунд завершает то, что осталось.
-    /// Возвращает число завершённых процессов.
+    /// First asks windows to close (like clicking ×), then terminates whatever is still running after 5 seconds.
+    /// Returns the number of processes that ended.
     /// </summary>
     public static int Close(IEnumerable<ProcessGroup> groups, Action<string> status)
     {
@@ -18,7 +18,7 @@ static class ProcessKiller
                 try
                 {
                     var p = Process.GetProcessById(pid);
-                    // PID мог достаться другому процессу, пока окно было открыто
+                    // the PID may have been reused by another process while the window was open
                     if (string.Equals(Native.GetProcessPath(pid), g.Path, StringComparison.OrdinalIgnoreCase))
                         procs.Add(p);
                     else
@@ -26,12 +26,12 @@ static class ProcessKiller
                 }
                 catch
                 {
-                    // уже завершился
+                    // already exited
                 }
             }
         }
 
-        status($"Закрываю окна ({procs.Count} процессов)…");
+        status($"Closing windows ({procs.Count} processes)…");
         var asked = new List<Process>();
         foreach (var p in procs)
         {
@@ -42,12 +42,12 @@ static class ProcessKiller
             catch { }
         }
 
-        // ждём только тех, кого попросили закрыться; безоконные процессы ждать бессмысленно
+        // only wait for processes that were asked to close; windowless ones will not react anyway
         var sw = Stopwatch.StartNew();
         while (sw.ElapsedMilliseconds < 5000 && asked.Any(p => !HasExited(p)))
             Thread.Sleep(250);
 
-        status("Завершаю оставшиеся процессы…");
+        status("Terminating the remaining processes…");
         int closed = 0;
         foreach (var p in procs)
         {
@@ -55,8 +55,8 @@ static class ProcessKiller
             {
                 if (!HasExited(p))
                 {
-                    // без дерева: дочерние процессы, если они новые, и так есть в списке,
-                    // а процессы из белого списка не должны пострадать
+                    // not the whole tree: new child processes are listed anyway,
+                    // and whitelisted processes must not be affected
                     p.Kill(entireProcessTree: false);
                     p.WaitForExit(2000);
                 }
@@ -64,7 +64,7 @@ static class ProcessKiller
             }
             catch (Exception ex)
             {
-                Log.Write($"Не удалось завершить {SafeName(p)} (PID {SafeId(p)}): {ex.Message}");
+                Log.Write($"Could not terminate {SafeName(p)} (PID {SafeId(p)}): {ex.Message}");
             }
             finally
             {
@@ -72,7 +72,7 @@ static class ProcessKiller
             }
         }
 
-        Log.Write($"Завершено процессов: {closed} из {procs.Count}");
+        Log.Write($"Processes ended: {closed} of {procs.Count}");
         return closed;
     }
 

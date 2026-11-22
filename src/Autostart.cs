@@ -6,9 +6,9 @@ using System.Text;
 namespace StaScan;
 
 /// <summary>
-/// Задачи планировщика:
-///  StaScan         — запуск при входе с наивысшими правами (без окна UAC), задержка 60 с;
-///  StaScanExplorer — запуск explorer.exe с обычными правами (запасной путь перезапуска проводника).
+/// Task Scheduler tasks:
+///  StaScan         — starts at sign-in with highest privileges (no UAC prompt), 60 s delay;
+///  StaScanExplorer — starts explorer.exe with normal rights (fallback for restarting Explorer).
 /// </summary>
 static class Autostart
 {
@@ -20,8 +20,8 @@ static class Autostart
     public static bool IsEnabled => Schtasks($"/query /tn \"{MainTask}\"") == 0;
 
     /// <summary>
-    /// Чем запускать StaScan. Обычно это dotnet.exe + StaScan.dll: dotnet.exe подписан Microsoft,
-    /// и Smart App Control его пропускает, а неподписанный StaScan.exe может заблокировать.
+    /// How to launch StaScan. Usually dotnet.exe + StaScan.dll: dotnet.exe is signed by Microsoft
+    /// and passes Smart App Control, while an unsigned StaScan.exe may be blocked.
     /// </summary>
     public static (string command, string args) LaunchCommand()
     {
@@ -31,7 +31,7 @@ static class Autostart
         return (proc, "");
     }
 
-    /// <summary>Запуск задачи автозапуска: так StaScan получает права администратора без окна UAC.</summary>
+    /// <summary>Runs the autostart task: this gives StaScan admin rights without a UAC prompt.</summary>
     public static bool RunMainTask() => Schtasks($"/run /tn \"{MainTask}\"") == 0;
 
     public static bool Enable()
@@ -51,18 +51,18 @@ static class Autostart
             command: exe,
             args: exeArgs);
         bool ok = CreateTask(MainTask, xml);
-        Log.Write(ok ? $"Автозапуск включён: {exe} {exeArgs}" : "Не удалось включить автозапуск");
+        Log.Write(ok ? $"Autostart enabled: {exe} {exeArgs}" : "Could not enable autostart");
         return ok;
     }
 
     public static bool Disable()
     {
         bool ok = Schtasks($"/delete /tn \"{MainTask}\" /f") == 0;
-        Log.Write(ok ? "Автозапуск выключен" : "Не удалось выключить автозапуск");
+        Log.Write(ok ? "Autostart disabled" : "Could not disable autostart");
         return ok;
     }
 
-    /// <summary>Если автозапуск включён, обновляет путь к exe (на случай, если exe перенесли).</summary>
+    /// <summary>If autostart is enabled, refreshes the launch path (in case the app was moved).</summary>
     public static void RefreshIfEnabled()
     {
         if (IsEnabled) Enable();
@@ -78,7 +78,7 @@ static class Autostart
     static string TaskXml(string trigger, string runLevel, string command, string args = "") => $"""
         <?xml version="1.0" encoding="UTF-16"?>
         <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-          <RegistrationInfo><Description>StaScan: подготовка ПК к игре</Description></RegistrationInfo>
+          <RegistrationInfo><Description>StaScan: get the PC ready for gaming</Description></RegistrationInfo>
         {trigger}
           <Principals>
             <Principal id="Author">
@@ -105,7 +105,7 @@ static class Autostart
         var file = AppPaths.File($"{name}.xml");
         try
         {
-            File.WriteAllText(file, xml, Encoding.Unicode); // schtasks ждёт UTF-16
+            File.WriteAllText(file, xml, Encoding.Unicode); // schtasks expects UTF-16
             return Schtasks($"/create /tn \"{name}\" /xml \"{file}\" /f") == 0;
         }
         finally
@@ -130,12 +130,12 @@ static class Autostart
             var err = p.StandardError.ReadToEnd();
             p.WaitForExit(10000);
             if (p.ExitCode != 0 && !args.StartsWith("/query"))
-                Log.Write($"schtasks {args} → код {p.ExitCode}: {err.Trim()}");
+                Log.Write($"schtasks {args} → exit code {p.ExitCode}: {err.Trim()}");
             return p.ExitCode;
         }
         catch (Exception ex)
         {
-            Log.Write($"schtasks не запустился: {ex.Message}");
+            Log.Write($"Could not start schtasks: {ex.Message}");
             return -1;
         }
     }

@@ -23,22 +23,22 @@ sealed class TrayContext : ApplicationContext
         (_baseline, bool reused) = Baseline.LoadOrTake();
 
         _menu = new ContextMenuStrip { Renderer = Theme.MenuRenderer() };
-        var prepare = new ToolStripMenuItem("Подготовить к игре…", null, (_, _) => Open(Page.Prepare))
+        var prepare = new ToolStripMenuItem("Game prep…", null, (_, _) => Open(Page.Prepare))
         {
             Font = new Font(SystemFonts.MenuFont ?? Control.DefaultFont, FontStyle.Bold),
         };
-        _servicesMenu = new ToolStripMenuItem("Фоновые службы");
-        _servicesMenu.DropDownItems.Add("…"); // заглушка, чтобы появилась стрелка подменю
+        _servicesMenu = new ToolStripMenuItem("Background services");
+        _servicesMenu.DropDownItems.Add("…"); // placeholder so the submenu arrow is shown
         _servicesMenu.DropDownOpening += (_, _) => BuildServicesMenu();
 
         _menu.Items.Add(prepare);
         _menu.Items.Add(_servicesMenu);
-        _menu.Items.Add("USB-порты мыши и клавиатуры…", null, (_, _) => Open(Page.Usb));
+        _menu.Items.Add("Mouse and keyboard USB ports…", null, (_, _) => Open(Page.Usb));
         _menu.Items.Add(new ToolStripSeparator());
-        _menu.Items.Add("Открыть StaScan", null, (_, _) => Open(Page.Prepare));
-        _menu.Items.Add("Настройки…", null, (_, _) => Open(Page.Settings));
+        _menu.Items.Add("Open StaScan", null, (_, _) => Open(Page.Prepare));
+        _menu.Items.Add("Settings…", null, (_, _) => Open(Page.Settings));
         _menu.Items.Add(new ToolStripSeparator());
-        _menu.Items.Add("Выход", null, (_, _) => ExitThread());
+        _menu.Items.Add("Exit", null, (_, _) => ExitThread());
 
         _tray = new NotifyIcon
         {
@@ -49,7 +49,7 @@ sealed class TrayContext : ApplicationContext
         _tray.DoubleClick += (_, _) => Open(Page.Prepare);
         UpdateTooltip();
 
-        // уведомления из таймера приходят не из UI-потока
+        // notifications from the timer do not arrive on the UI thread
         _ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         _affinity = new AffinityWatcher(() => _settings.Cs2SkipCpu0, (t, i) => _ui.Post(_ => Notify(t, i), null));
 
@@ -70,11 +70,11 @@ sealed class TrayContext : ApplicationContext
 
         if (!reused && Environment.TickCount64 > TimeSpan.FromMinutes(10).TotalMilliseconds)
         {
-            Notify("Снимок сделан сейчас, а не при входе в Windows. Уже открытые программы считаются «чистыми». " +
-                   "Включите автозапуск в разделе «Настройки».", ToolTipIcon.Info);
+            Notify("The snapshot was taken now rather than at sign-in, so programs that are already open count as clean. " +
+                   "Turn on \"Start with Windows\" in Settings.", ToolTipIcon.Info);
         }
 
-        // после запуска сразу отдаём системе память, занятую инициализацией
+        // right after startup, give the memory used during initialization back to the system
         TrimMemory();
     }
 
@@ -118,7 +118,7 @@ sealed class TrayContext : ApplicationContext
         }
     }
 
-    /// <summary>Тема «Как в Windows»: подхватываем переключение светлой/тёмной темы в Параметрах.</summary>
+    /// <summary>"Use Windows setting" theme: follow light/dark switches in Windows Settings.</summary>
     void OnUserPreferenceChanged(object? sender, UserPreferenceChangedEventArgs e)
     {
         if (e.Category != UserPreferenceCategory.General || _settings.Theme != ThemeMode.System) return;
@@ -126,7 +126,7 @@ sealed class TrayContext : ApplicationContext
         _ui.Post(_ => ApplyTheme(Page.Settings), null);
     }
 
-    /// <summary>Подменю «Фоновые службы»: клик по службе переключает её (работает ⇄ на время игры).</summary>
+    /// <summary>"Background services" submenu: clicking a service toggles it (running ⇄ paused for the session).</summary>
     void BuildServicesMenu()
     {
         var items = _servicesMenu.DropDownItems;
@@ -149,9 +149,9 @@ sealed class TrayContext : ApplicationContext
                 Checked = status == BgStatus.Active,
                 ToolTipText = status switch
                 {
-                    BgStatus.Active => "Работает. Нажмите, чтобы приостановить на время игры",
-                    BgStatus.OffInWindows => "Отключено не через StaScan. Нажмите, чтобы включить (как в Windows по умолчанию)",
-                    _ => "Нажмите, чтобы вернуть как было",
+                    BgStatus.Active => "Running. Click to pause for this gaming session",
+                    BgStatus.OffInWindows => "Disabled outside StaScan. Click to enable it with the Windows default",
+                    _ => "Click to restore",
                 },
             };
             var id = item.Id;
@@ -161,33 +161,33 @@ sealed class TrayContext : ApplicationContext
 
         items.Add(new ToolStripSeparator());
 
-        var permanent = new ToolStripMenuItem("Отключить насовсем");
+        var permanent = new ToolStripMenuItem("Disable permanently");
         foreach (var item in available.Where(i => BackgroundServices.GetStatus(i, state) is BgStatus.Active or BgStatus.PausedForGame))
         {
             var it = item;
             permanent.DropDownItems.Add(it.Title, null, async (_, _) =>
             {
-                if (MessageBox.Show($"«{it.Title}» будет отключено и не включится после перезагрузки, пока вы его не вернёте. Продолжить?",
+                if (MessageBox.Show($"\"{it.Title}\" will be disabled and will stay off after a reboot until you restore it. Continue?",
                         "StaScan", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
                 var (_, errors) = await Task.Run(() => BackgroundServices.Apply(new[] { it.Id }, PauseMode.Permanent));
-                Notify(errors.Count > 0 ? $"Не получилось: {errors[0]}" : $"{it.Title}: отключено насовсем",
+                Notify(errors.Count > 0 ? $"Failed: {errors[0]}" : $"{it.Title}: disabled permanently",
                     errors.Count > 0 ? ToolTipIcon.Warning : ToolTipIcon.Info);
             });
         }
         permanent.Enabled = permanent.DropDownItems.Count > 0;
         items.Add(permanent);
 
-        items.Add(new ToolStripMenuItem("Приостановить отмеченные на время игры", null, async (_, _) =>
+        items.Add(new ToolStripMenuItem("Pause marked items for this session", null, async (_, _) =>
         {
             var (ok, errors) = await Task.Run(() => BackgroundServices.Apply(_settings.BackgroundItemIds, PauseMode.Temporary));
-            Notify($"Приостановлено: {ok}." + (errors.Count > 0 ? $" Не получилось: {string.Join("; ", errors)}" : ""),
+            Notify($"Paused: {ok}." + (errors.Count > 0 ? $" Failed: {string.Join("; ", errors)}" : ""),
                 errors.Count > 0 ? ToolTipIcon.Warning : ToolTipIcon.Info);
         }));
-        items.Add(new ToolStripMenuItem("Вернуть всё как было", null, async (_, _) => await RestoreBackground())
+        items.Add(new ToolStripMenuItem("Restore all", null, async (_, _) => await RestoreBackground())
         {
             Enabled = state.Count > 0,
         });
-        items.Add(new ToolStripMenuItem("Открыть список…", null, (_, _) => Open(Page.Services)));
+        items.Add(new ToolStripMenuItem("Open list…", null, (_, _) => Open(Page.Services)));
     }
 
     async Task RunToggle(string id)
@@ -199,31 +199,31 @@ sealed class TrayContext : ApplicationContext
         }
         catch (Exception ex)
         {
-            Log.Write($"Трей: переключение {id} не удалось: {ex.Message}");
-            Notify("Не получилось: " + ex.Message, ToolTipIcon.Warning);
+            Log.Write($"Tray: toggling {id} failed: {ex.Message}");
+            Notify("Failed: " + ex.Message, ToolTipIcon.Warning);
         }
     }
 
     async Task RestoreBackground()
     {
         var (ok, errors) = await Task.Run(() => BackgroundServices.Restore());
-        Notify($"Фоновые службы возвращены: {ok}." + (errors.Count > 0 ? $" Не получилось: {string.Join("; ", errors)}" : ""),
+        Notify($"Background services restored: {ok}." + (errors.Count > 0 ? $" Failed: {string.Join("; ", errors)}" : ""),
             errors.Count > 0 ? ToolTipIcon.Warning : ToolTipIcon.Info);
     }
 
-    /// <summary>«На время игры» не должно переживать перезагрузку: возвращаем то, что приостанавливали в прошлом сеансе.</summary>
+    /// <summary>"For this session" must not survive a reboot: restore whatever was paused in the previous session.</summary>
     async Task AutoRestoreAfterReboot()
     {
         try
         {
             var (ok, errors) = await Task.Run(() => BackgroundServices.Restore(onlyTemporaryFromOldBoot: true));
             if (ok > 0 || errors.Count > 0)
-                Notify($"После перезагрузки вернул фоновые службы, приостановленные на время игры: {ok}." +
-                       (errors.Count > 0 ? $" Ошибок: {errors.Count}, см. лог." : ""), errors.Count > 0 ? ToolTipIcon.Warning : ToolTipIcon.Info);
+                Notify($"Restored background services that were paused for the previous gaming session: {ok}." +
+                       (errors.Count > 0 ? $" Errors: {errors.Count}, see the log." : ""), errors.Count > 0 ? ToolTipIcon.Warning : ToolTipIcon.Info);
         }
         catch (Exception ex)
         {
-            Log.Write($"Автооткат фоновых служб упал: {ex}");
+            Log.Write($"Automatic restore of background services failed: {ex}");
         }
     }
 
@@ -231,10 +231,10 @@ sealed class TrayContext : ApplicationContext
     {
         _baseline = Baseline.Take();
         UpdateTooltip();
-        Notify($"Новый снимок: {_baseline.Keys.Count} процессов считаются «чистыми».", ToolTipIcon.Info);
+        Notify($"New snapshot: {_baseline.Keys.Count} processes now count as clean.", ToolTipIcon.Info);
     }
 
-    void UpdateTooltip() => _tray.Text = $"StaScan: снимок от {_baseline.TakenAt:HH:mm}";
+    void UpdateTooltip() => _tray.Text = $"StaScan: snapshot from {_baseline.TakenAt.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)}";
 
     void Notify(string text, ToolTipIcon icon)
     {
@@ -248,8 +248,8 @@ sealed class TrayContext : ApplicationContext
     static extern bool SetProcessWorkingSetSize(IntPtr process, IntPtr min, IntPtr max);
 
     /// <summary>
-    /// В трее StaScan большую часть времени спит, поэтому после закрытия окна собираем мусор
-    /// и отдаём рабочий набор системе: в простое процесс занимает считанные мегабайты физической памяти.
+    /// StaScan sleeps in the tray most of the time, so after the window is closed we collect garbage
+    /// and hand the working set back to the system: when idle the process uses only a few MB of physical memory.
     /// </summary>
     static void TrimMemory()
     {
@@ -269,14 +269,14 @@ sealed class TrayContext : ApplicationContext
         _affinity.Dispose();
         _tray.Visible = false;
         _tray.Dispose();
-        Log.Write("StaScan закрыт");
+        Log.Write("StaScan exited");
         base.ExitThreadCore();
     }
 }
 
 static class TrayIcon
 {
-    /// <summary>Значок рисуем в коде, чтобы не таскать .ico: зелёный круг с треугольником «play».</summary>
+    /// <summary>The icon is drawn in code so no .ico file is needed: a green circle with a play triangle.</summary>
     public static Icon Create()
     {
         using var bmp = new Bitmap(32, 32);

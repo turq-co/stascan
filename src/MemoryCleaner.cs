@@ -4,21 +4,21 @@ sealed record MemoryReport(Native.MemoryLists? Before, Native.MemoryLists? After
 
 static class MemoryCleaner
 {
-    /// <summary>Сбрасывает рабочие наборы, modified list, кэш файлов и standby list (как RAMMap → Empty).</summary>
+    /// <summary>Empties working sets, the modified list, the file cache and the standby list (like RAMMap → Empty).</summary>
     public static MemoryReport Clean()
     {
         var errors = new List<string>();
         if (!Native.EnablePrivilege("SeProfileSingleProcessPrivilege"))
-            errors.Add("нет привилегии SeProfileSingleProcessPrivilege (приложение запущено не от администратора?)");
+            errors.Add("SeProfileSingleProcessPrivilege is not available (is the app running without admin rights?)");
         if (!Native.EnablePrivilege("SeIncreaseQuotaPrivilege"))
-            errors.Add("нет привилегии SeIncreaseQuotaPrivilege");
+            errors.Add("SeIncreaseQuotaPrivilege is not available");
 
         var before = Native.QueryMemoryLists();
 
-        Command(Native.MemoryEmptyWorkingSets, "рабочие наборы", errors);
+        Command(Native.MemoryEmptyWorkingSets, "working sets", errors);
 
         if (!Native.SetSystemFileCacheSize(new IntPtr(-1), new IntPtr(-1), 0))
-            errors.Add($"сброс кэша файлов: ошибка {System.Runtime.InteropServices.Marshal.GetLastWin32Error()}");
+            errors.Add($"file cache flush: error {System.Runtime.InteropServices.Marshal.GetLastWin32Error()}");
 
         Command(Native.MemoryFlushModifiedList, "modified list", errors);
         Command(Native.MemoryPurgeStandbyList, "standby list", errors);
@@ -26,10 +26,10 @@ static class MemoryCleaner
         var after = Native.QueryMemoryLists();
         var report = new MemoryReport(before, after, Native.GetNonpagedPoolBytes(), errors);
 
-        Log.Write($"Очистка ОЗУ: свободно {Fmt(before?.FreeBytes)} → {Fmt(after?.FreeBytes)}, " +
+        Log.Write($"Memory cleanup: free {Fmt(before?.FreeBytes)} → {Fmt(after?.FreeBytes)}, " +
                   $"standby {Fmt(before?.StandbyBytes)} → {Fmt(after?.StandbyBytes)}, " +
                   $"nonpaged pool {Native.Mb(report.NonpagedPool)}" +
-                  (errors.Count > 0 ? "; ошибки: " + string.Join("; ", errors) : ""));
+                  (errors.Count > 0 ? "; errors: " + string.Join("; ", errors) : ""));
         return report;
     }
 

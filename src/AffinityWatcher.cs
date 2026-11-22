@@ -3,9 +3,9 @@ using System.Diagnostics;
 namespace StaScan;
 
 /// <summary>
-/// Убирает CPU 0 из маски привязки процесса cs2.exe. CS2 обычно запускают уже после подготовки,
-/// поэтому, пока опция включена, StaScan раз в 3 секунды проверяет cs2.exe и при необходимости
-/// снова выставляет маску (если игра или античит её сбросили).
+/// Removes CPU 0 from the affinity mask of cs2.exe. CS2 is usually launched after game prep,
+/// so while the option is on StaScan checks cs2.exe every 3 seconds and re-applies the mask
+/// if the game or an anti-cheat resets it.
 /// </summary>
 sealed class AffinityWatcher : IDisposable
 {
@@ -26,14 +26,14 @@ sealed class AffinityWatcher : IDisposable
         Update();
     }
 
-    /// <summary>Таймер работает только при включённой опции: в остальное время StaScan не просыпается.</summary>
+    /// <summary>The timer only runs while the option is on; otherwise StaScan never wakes up for it.</summary>
     public void Update()
     {
         if (_enabled()) _timer.Change(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3));
         else _timer.Change(Timeout.Infinite, Timeout.Infinite);
     }
 
-    /// <summary>Маска «все логические процессоры, кроме CPU 0».</summary>
+    /// <summary>Mask of all logical processors except CPU 0.</summary>
     static IntPtr TargetMask()
     {
         int n = Math.Min(Environment.ProcessorCount, 64);
@@ -58,23 +58,23 @@ sealed class AffinityWatcher : IDisposable
                     if (_failed.Contains(p.Id)) continue;
                     try
                     {
-                        if ((p.ProcessorAffinity.ToInt64() & 1) == 0) continue; // CPU 0 уже снят
+                        if ((p.ProcessorAffinity.ToInt64() & 1) == 0) continue; // CPU 0 already excluded
                         p.ProcessorAffinity = TargetMask();
                         if (_applied.Add(p.Id))
                         {
-                            Log.Write($"cs2.exe (PID {p.Id}): CPU 0 снят, маска 0x{TargetMask().ToInt64():X}");
-                            _notify("CS2: CPU 0 отключён для игры.", ToolTipIcon.Info);
+                            Log.Write($"cs2.exe (PID {p.Id}): CPU 0 excluded, mask 0x{TargetMask().ToInt64():X}");
+                            _notify("CS2: CPU 0 is now excluded for the game.", ToolTipIcon.Info);
                         }
                         else
                         {
-                            Log.Write($"cs2.exe (PID {p.Id}): маску сбросили, выставил заново");
+                            Log.Write($"cs2.exe (PID {p.Id}): the mask was reset, applied it again");
                         }
                     }
                     catch (Exception ex)
                     {
                         _failed.Add(p.Id);
-                        Log.Write($"cs2.exe (PID {p.Id}): не удалось изменить привязку к CPU: {ex.Message}");
-                        _notify("Не удалось отключить CPU 0 для CS2 (возможно, мешает античит). Подробности в логе.", ToolTipIcon.Warning);
+                        Log.Write($"cs2.exe (PID {p.Id}): could not change CPU affinity: {ex.Message}");
+                        _notify("Could not exclude CPU 0 for CS2 (an anti-cheat may be blocking it). See the log for details.", ToolTipIcon.Warning);
                     }
                 }
             }

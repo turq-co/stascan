@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.Win32;
@@ -6,7 +7,7 @@ namespace StaScan;
 
 enum PauseMode { Temporary, Permanent }
 
-/// <summary>Фоновая служба, задача или настройка Windows, которую можно приостановить и потом вернуть.</summary>
+/// <summary>A Windows background service, task or setting that can be paused and later restored.</summary>
 abstract class BgItem
 {
     public required string Id { get; init; }
@@ -15,24 +16,24 @@ abstract class BgItem
     public required string Description { get; init; }
 
     public abstract bool Exists();
-    /// <summary>Текущее состояние для показа в окне.</summary>
+    /// <summary>Current state, for display.</summary>
     public abstract string Describe();
-    /// <summary>Исходное состояние в виде строки, чтобы потом вернуть как было.</summary>
+    /// <summary>The original state as a string, so it can be restored exactly.</summary>
     public abstract string Capture();
     public abstract void Apply(PauseMode mode);
     public abstract void Restore(string original);
-    /// <summary>Отключено ли сейчас (кем угодно: StaScan или вручную в Windows).</summary>
+    /// <summary>Whether it is currently off (by StaScan or manually in Windows).</summary>
     public abstract bool IsOff();
-    /// <summary>Включить то, что отключили не через StaScan: ставит значение Windows по умолчанию.</summary>
+    /// <summary>Turns on something that was disabled outside StaScan, using the Windows default.</summary>
     public abstract void EnableDefault();
 }
 
-// ── Служба ─────────────────────────────────────────────────────────────────────────
+// ── Service ───────────────────────────────────────────────────────────────────────
 
 sealed class ServiceItem : BgItem
 {
     public required string ServiceName { get; init; }
-    /// <summary>Тип запуска в чистой Windows: 2 = автоматически, 3 = вручную.</summary>
+    /// <summary>Start type in a clean Windows install: 2 = automatic, 3 = manual.</summary>
     public uint DefaultStart { get; init; } = 3;
 
     const uint SC_MANAGER_CONNECT = 0x1;
@@ -86,17 +87,17 @@ sealed class ServiceItem : BgItem
 
     static string StartText(int s) => s switch
     {
-        0 or 1 => "при загрузке",
-        2 => "автозапуск",
-        3 => "вручную",
-        4 => "отключена",
+        0 or 1 => "boot",
+        2 => "automatic",
+        3 => "manual",
+        4 => "disabled",
         _ => "?",
     };
 
     T WithService<T>(uint access, Func<IntPtr, T> action)
     {
         IntPtr scm = OpenSCManagerW(null, null, SC_MANAGER_CONNECT);
-        if (scm == IntPtr.Zero) throw new InvalidOperationException($"нет доступа к диспетчеру служб ({Marshal.GetLastWin32Error()})");
+        if (scm == IntPtr.Zero) throw new InvalidOperationException($"cannot access the Service Control Manager ({Marshal.GetLastWin32Error()})");
         try
         {
             IntPtr svc = OpenServiceW(scm, ServiceName, access);
@@ -124,26 +125,26 @@ sealed class ServiceItem : BgItem
     }
 
     public override string Describe() =>
-        $"{(IsRunning() ? "работает" : "остановлена")} · {StartText(StartType())}";
+        $"{(IsRunning() ? "running" : "stopped")} · {StartText(StartType())}";
 
     public override string Capture() => $"{StartType()}|{(IsRunning() ? 1 : 0)}";
 
     public override void Apply(PauseMode mode)
     {
-        // В обоих режимах служба отключается: иначе Windows поднимет её по триггеру прямо во время игры.
-        // Временный режим отличается тем, что StaScan сам вернёт её после перезагрузки.
+        // The service is disabled in both modes; otherwise Windows would start it again via a trigger mid-game.
+        // The temporary mode differs only in that StaScan restores it automatically after a reboot.
         WithService(SERVICE_CHANGE_CONFIG | SERVICE_STOP | SERVICE_QUERY_STATUS, h =>
         {
             if (!ChangeServiceConfigW(h, SERVICE_NO_CHANGE, DISABLED, SERVICE_NO_CHANGE, null, null, IntPtr.Zero, null, null, null, null))
-                throw new InvalidOperationException("Windows не дал изменить тип запуска: " + Win32Text(Marshal.GetLastWin32Error()));
+                throw new InvalidOperationException("Windows did not allow changing the start type: " + Win32Text(Marshal.GetLastWin32Error()));
 
             if (QueryServiceStatus(h, out var st) && st.CurrentState != SERVICE_STOPPED)
             {
                 if (!ControlService(h, SERVICE_CONTROL_STOP, out _))
                 {
                     int err = Marshal.GetLastWin32Error();
-                    if (err != 1062) // уже остановлена
-                        throw new InvalidOperationException("отключена, но не остановилась: " + Win32Text(err));
+                    if (err != 1062) // already stopped
+                        throw new InvalidOperationException("disabled, but it did not stop: " + Win32Text(err));
                 }
                 for (int i = 0; i < 40 && QueryServiceStatus(h, out st) && st.CurrentState != SERVICE_STOPPED; i++)
                     Thread.Sleep(250);
@@ -155,19 +156,19 @@ sealed class ServiceItem : BgItem
     public override void Restore(string original)
     {
         var parts = original.Split('|');
-        uint start = uint.Parse(parts[0]);
+        uint start = uint.Parse(parts[0], CultureInfo.InvariantCulture);
         bool wasRunning = parts.Length > 1 && parts[1] == "1";
         WithService(SERVICE_CHANGE_CONFIG | SERVICE_START | SERVICE_QUERY_STATUS, h =>
         {
             if (!ChangeServiceConfigW(h, SERVICE_NO_CHANGE, start, SERVICE_NO_CHANGE, null, null, IntPtr.Zero, null, null, null, null))
-                throw new InvalidOperationException("не удалось вернуть тип запуска: " + Win32Text(Marshal.GetLastWin32Error()));
+                throw new InvalidOperationException("could not restore the start type: " + Win32Text(Marshal.GetLastWin32Error()));
             if (wasRunning && QueryServiceStatus(h, out var st) && st.CurrentState != SERVICE_RUNNING)
             {
                 if (!StartServiceW(h, 0, null))
                 {
                     int err = Marshal.GetLastWin32Error();
-                    if (err != 1056) // уже запущена
-                        Log.Write($"{ServiceName}: тип запуска возвращён, но служба не стартовала: {Win32Text(err)}");
+                    if (err != 1056) // already running
+                        Log.Write($"{ServiceName}: start type restored, but the service did not start: {Win32Text(err)}");
                 }
             }
             return 0;
@@ -181,7 +182,7 @@ sealed class ServiceItem : BgItem
     static string Win32Text(int code) => $"{new System.ComponentModel.Win32Exception(code).Message} ({code})";
 }
 
-// ── Задача планировщика ────────────────────────────────────────────────────────────
+// ── Scheduled task ────────────────────────────────────────────────────────────────
 
 sealed class TaskItem : BgItem
 {
@@ -210,17 +211,17 @@ sealed class TaskItem : BgItem
     public override string Describe()
     {
         var t = GetTask();
-        if (t == null) return "нет в системе";
+        if (t == null) return "not present";
         bool enabled = t.Enabled;
-        int state = t.State; // 4 = выполняется
-        return (enabled ? "включена" : "отключена") + (state == 4 ? ", выполняется сейчас" : "");
+        int state = t.State; // 4 = running
+        return (enabled ? "enabled" : "disabled") + (state == 4 ? ", running now" : "");
     }
 
     public override string Capture() => GetTask()?.Enabled == true ? "1" : "0";
 
     public override void Apply(PauseMode mode)
     {
-        var t = GetTask() ?? throw new InvalidOperationException("задача не найдена");
+        var t = GetTask() ?? throw new InvalidOperationException("task not found");
         try
         {
             if ((int)t.State == 4) t.Stop(0);
@@ -228,13 +229,13 @@ sealed class TaskItem : BgItem
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException("Windows не дал отключить задачу (она защищена системой): " + ex.Message);
+            throw new InvalidOperationException("Windows did not allow disabling the task (it is protected by the system): " + ex.Message);
         }
     }
 
     public override void Restore(string original)
     {
-        var t = GetTask() ?? throw new InvalidOperationException("задача не найдена");
+        var t = GetTask() ?? throw new InvalidOperationException("task not found");
         t.Enabled = original == "1";
     }
 
@@ -243,7 +244,7 @@ sealed class TaskItem : BgItem
     public override void EnableDefault() => Restore("1");
 }
 
-// ── Значения реестра ───────────────────────────────────────────────────────────────
+// ── Registry values ───────────────────────────────────────────────────────────────
 
 sealed record RegValue(RegistryKey Hive, string Key, string Name, object Target, RegistryValueKind Kind = RegistryValueKind.DWord);
 
@@ -262,10 +263,10 @@ sealed class RegistryItem : BgItem
     }
 
     public override string Describe() =>
-        Values.All(v => Equals(Read(v)?.ToString(), v.Target.ToString())) ? OffText : OnText;
+        Values.All(v => Equals(Convert.ToString(Read(v), CultureInfo.InvariantCulture), Convert.ToString(v.Target, CultureInfo.InvariantCulture))) ? OffText : OnText;
 
     public override string Capture() =>
-        JsonSerializer.Serialize(Values.Select(v => Read(v)?.ToString()).ToArray());
+        JsonSerializer.Serialize(Values.Select(v => Read(v) is { } o ? Convert.ToString(o, CultureInfo.InvariantCulture) : null).ToArray());
 
     public override void Apply(PauseMode mode)
     {
@@ -285,18 +286,18 @@ sealed class RegistryItem : BgItem
             using var k = v.Hive.CreateSubKey(v.Key, writable: true);
             var o = i < old.Length ? old[i] : null;
             if (o == null) k.DeleteValue(v.Name, throwOnMissingValue: false);
-            else k.SetValue(v.Name, v.Kind == RegistryValueKind.DWord ? int.Parse(o) : o, v.Kind);
+            else k.SetValue(v.Name, v.Kind == RegistryValueKind.DWord ? int.Parse(o, CultureInfo.InvariantCulture) : o, v.Kind);
         }
     }
 
     public override bool IsOff() => Describe() == OffText;
 
-    // без этих значений Windows ведёт себя по умолчанию (всё включено)
+    // without these values Windows uses its defaults (everything on)
     public override void EnableDefault() =>
         Restore(JsonSerializer.Serialize(new string?[Values.Length]));
 }
 
-// ── Пауза Windows Update (то же, что кнопка «Приостановить обновления» в Параметрах) ──
+// ── Windows Update pause (same as "Pause updates" in Settings) ───────────────────
 
 sealed class UpdatePauseItem : BgItem
 {
@@ -313,16 +314,18 @@ sealed class UpdatePauseItem : BgItem
     static DateTime? CurrentPauseUntilUtc()
     {
         using var k = Registry.LocalMachine.OpenSubKey(Key);
-        // формат ISO 8601 разбираем инвариантно: на системах с другой локалью разделители даты и времени отличаются
-        if (k?.GetValue("PauseUpdatesExpiryTime") is string s && DateTime.TryParse(s, System.Globalization.CultureInfo.InvariantCulture,
-                System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var until)
+        // parse ISO 8601 with the invariant culture: date and time separators differ between locales
+        if (k?.GetValue("PauseUpdatesExpiryTime") is string s && DateTime.TryParse(s, CultureInfo.InvariantCulture,
+                DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var until)
             && until > DateTime.UtcNow)
             return until;
         return null;
     }
 
     public override string Describe() =>
-        CurrentPauseUntilUtc() is { } until ? $"на паузе до {until.ToLocalTime():dd.MM.yyyy}" : "обновления не на паузе";
+        CurrentPauseUntilUtc() is { } until
+            ? $"paused until {until.ToLocalTime().ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}"
+            : "updates are not paused";
 
     public override string Capture()
     {
@@ -333,9 +336,9 @@ sealed class UpdatePauseItem : BgItem
     public override void Apply(PauseMode mode)
     {
         var now = DateTime.UtcNow;
-        var until = now.AddDays(mode == PauseMode.Temporary ? 7 : 35); // 35 дней — максимум, который даёт Windows
-        if (CurrentPauseUntilUtc() >= until) return; // уже стоит пауза длиннее: не сокращаем её
-        string F(DateTime d) => d.ToString("yyyy-MM-ddTHH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture);
+        var until = now.AddDays(mode == PauseMode.Temporary ? 7 : 35); // 35 days is the maximum Windows allows
+        if (CurrentPauseUntilUtc() >= until) return; // a longer pause is already set: do not shorten it
+        string F(DateTime d) => d.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
         using var k = Registry.LocalMachine.CreateSubKey(Key, writable: true);
         k.SetValue("PauseUpdatesStartTime", F(now));
         k.SetValue("PauseUpdatesExpiryTime", F(until));
@@ -362,7 +365,7 @@ sealed class UpdatePauseItem : BgItem
     public override void EnableDefault() => Restore(JsonSerializer.Serialize(new string?[Names.Length]));
 }
 
-// ── Каталог и состояние ────────────────────────────────────────────────────────────
+// ── Catalog and state ─────────────────────────────────────────────────────────────
 
 sealed class BgEntry
 {
@@ -375,52 +378,52 @@ sealed class BgEntry
 
 static class BackgroundServices
 {
-    const string GUpdates = "Обновления и индексация";
-    const string GTelemetry = "Телеметрия и обслуживание";
-    const string GOther = "Прочее";
+    const string GUpdates = "Updates and indexing";
+    const string GTelemetry = "Telemetry and maintenance";
+    const string GOther = "Other";
 
     public static readonly IReadOnlyList<BgItem> Catalog = new BgItem[]
     {
-        new UpdatePauseItem { Id = "wu-pause", Group = GUpdates, Title = "Пауза обновлений Windows",
-            Description = "Как «Приостановить обновления» в Параметрах: 7 дней на время игры, 35 насовсем" },
-        new ServiceItem { Id = "svc-wuauserv", ServiceName = "wuauserv", Group = GUpdates, Title = "Центр обновления Windows (wuauserv)",
-            Description = "Поиск, скачивание и установка обновлений. Служба WaaSMedic может включить её обратно" },
-        new ServiceItem { Id = "svc-usosvc", ServiceName = "UsoSvc", DefaultStart = 2, Group = GUpdates, Title = "Оркестратор обновлений (UsoSvc)",
-            Description = "Запускает проверку и установку обновлений по расписанию" },
-        new ServiceItem { Id = "svc-bits", ServiceName = "BITS", Group = GUpdates, Title = "Фоновая передача (BITS)",
-            Description = "Фоновое скачивание обновлений Windows, Edge, Office и т.п." },
-        new ServiceItem { Id = "svc-dosvc", ServiceName = "DoSvc", DefaultStart = 2, Group = GUpdates, Title = "Оптимизация доставки (DoSvc)",
-            Description = "Раздаёт скачанные обновления другим ПК и грузит сеть" },
-        new ServiceItem { Id = "svc-wsearch", ServiceName = "WSearch", DefaultStart = 2, Group = GUpdates, Title = "Индексация поиска (WSearch)",
-            Description = "Индексирует файлы для поиска Windows, нагружает диск и процессор" },
+        new UpdatePauseItem { Id = "wu-pause", Group = GUpdates, Title = "Windows Update pause",
+            Description = "Same as \"Pause updates\" in Settings: 7 days for a gaming session, 35 days permanently" },
+        new ServiceItem { Id = "svc-wuauserv", ServiceName = "wuauserv", Group = GUpdates, Title = "Windows Update (wuauserv)",
+            Description = "Finds, downloads and installs updates. WaaSMedic may turn it back on" },
+        new ServiceItem { Id = "svc-usosvc", ServiceName = "UsoSvc", DefaultStart = 2, Group = GUpdates, Title = "Update Orchestrator (UsoSvc)",
+            Description = "Schedules update scans and installations" },
+        new ServiceItem { Id = "svc-bits", ServiceName = "BITS", Group = GUpdates, Title = "Background Intelligent Transfer (BITS)",
+            Description = "Background downloads for Windows, Edge, Office and more" },
+        new ServiceItem { Id = "svc-dosvc", ServiceName = "DoSvc", DefaultStart = 2, Group = GUpdates, Title = "Delivery Optimization (DoSvc)",
+            Description = "Shares downloaded updates with other PCs and uses bandwidth" },
+        new ServiceItem { Id = "svc-wsearch", ServiceName = "WSearch", DefaultStart = 2, Group = GUpdates, Title = "Windows Search indexing (WSearch)",
+            Description = "Indexes files for Windows Search, loading the disk and CPU" },
 
-        new ServiceItem { Id = "svc-diagtrack", ServiceName = "DiagTrack", DefaultStart = 2, Group = GTelemetry, Title = "Телеметрия (DiagTrack)",
-            Description = "Сбор и отправка диагностических данных в Microsoft" },
+        new ServiceItem { Id = "svc-diagtrack", ServiceName = "DiagTrack", DefaultStart = 2, Group = GTelemetry, Title = "Telemetry (DiagTrack)",
+            Description = "Collects and sends diagnostic data to Microsoft" },
         new TaskItem { Id = "task-appraiser", TaskPath = @"\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser", Group = GTelemetry,
-            Title = "Проверка совместимости (Compatibility Appraiser)", Description = "Периодически сканирует программы, может надолго грузить CPU и диск" },
+            Title = "Compatibility Appraiser", Description = "Periodically scans installed programs and can load the CPU and disk for a long time" },
         new TaskItem { Id = "task-appraiser-exp", TaskPath = @"\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser Exp", Group = GTelemetry,
-            Title = "Проверка совместимости (Appraiser Exp)", Description = "Вариант той же задачи в новых сборках Windows" },
+            Title = "Compatibility Appraiser (Exp)", Description = "Variant of the same task in newer Windows builds" },
         new TaskItem { Id = "task-ceip", TaskPath = @"\Microsoft\Windows\Customer Experience Improvement Program\Consolidator", Group = GTelemetry,
-            Title = "Программа улучшения качества (CEIP)", Description = "Сбор статистики использования" },
+            Title = "Customer Experience Improvement Program", Description = "Collects usage statistics" },
         new TaskItem { Id = "task-diskdiag", TaskPath = @"\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector", Group = GTelemetry,
-            Title = "Сбор диагностики дисков", Description = "Отправка данных о дисках" },
+            Title = "Disk diagnostics collector", Description = "Sends disk diagnostic data" },
         new TaskItem { Id = "task-defrag", TaskPath = @"\Microsoft\Windows\Defrag\ScheduledDefrag", Group = GTelemetry,
-            Title = "Оптимизация дисков по расписанию", Description = "Дефрагментация HDD и TRIM для SSD. Насовсем отключать не советую: TRIM полезен SSD" },
-        new RegistryItem { Id = "reg-maintenance", Group = GTelemetry, Title = "Автоматическое обслуживание",
-            Description = "Ночные и простойные задачи Windows (сканирование, очистка, обновления магазина)",
+            Title = "Scheduled drive optimization", Description = "HDD defragmentation and SSD TRIM. Not recommended to disable permanently: SSDs benefit from TRIM" },
+        new RegistryItem { Id = "reg-maintenance", Group = GTelemetry, Title = "Automatic Maintenance",
+            Description = "Windows idle and nightly tasks (scans, cleanup, Store updates)",
             Values = new[] { new RegValue(Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\Maintenance", "MaintenanceDisabled", 1) },
-            OnText = "включено", OffText = "отключено" },
+            OnText = "enabled", OffText = "disabled" },
 
         new ServiceItem { Id = "svc-sysmain", ServiceName = "SysMain", DefaultStart = 2, Group = GOther, Title = "SysMain (Superfetch)",
-            Description = "Заранее грузит программы в ОЗУ. На SSD пользы мало, эффект на FPS спорный" },
-        new RegistryItem { Id = "reg-gamedvr", Group = GOther, Title = "Фоновая запись Xbox Game Bar",
-            Description = "«Записать то, что произошло»: постоянно пишет игру в фоне и ест FPS",
+            Description = "Preloads programs into RAM. Little benefit on SSDs; effect on FPS is debatable" },
+        new RegistryItem { Id = "reg-gamedvr", Group = GOther, Title = "Xbox Game Bar background recording",
+            Description = "\"Record what happened\": constantly records gameplay in the background and costs FPS",
             Values = new[]
             {
                 new RegValue(Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\GameDVR", "AppCaptureEnabled", 0),
                 new RegValue(Registry.CurrentUser, @"System\GameConfigStore", "GameDVR_Enabled", 0),
             },
-            OnText = "включена", OffText = "отключена" },
+            OnText = "enabled", OffText = "disabled" },
     };
 
     public static IEnumerable<BgItem> Available => Catalog.Where(i => { try { return i.Exists(); } catch { return false; } });
@@ -437,7 +440,7 @@ static class BackgroundServices
         }
         catch (Exception ex)
         {
-            Log.Write($"background-state.json не прочитан: {ex.Message}");
+            Log.Write($"Could not read background-state.json: {ex.Message}");
         }
         return new();
     }
@@ -450,11 +453,11 @@ static class BackgroundServices
         }
         catch (Exception ex)
         {
-            Log.Write($"Не удалось сохранить background-state.json: {ex.Message}");
+            Log.Write($"Could not save background-state.json: {ex.Message}");
         }
     }
 
-    /// <summary>Приостанавливает выбранные пункты. Возвращает (успешно, ошибки).</summary>
+    /// <summary>Pauses the selected items. Returns (succeeded, errors).</summary>
     public static (int ok, List<string> errors) Apply(IEnumerable<string> ids, PauseMode mode)
     {
         lock (Sync)
@@ -467,7 +470,7 @@ static class BackgroundServices
                 var entry = state.FirstOrDefault(e => e.Id == item.Id);
                 try
                 {
-                    // исходное состояние запоминаем только один раз, чтобы повторная пауза не перезаписала его
+                    // capture the original state only once so a repeated pause does not overwrite it
                     var original = entry?.Original ?? item.Capture();
                     item.Apply(mode);
                     if (entry == null)
@@ -475,16 +478,16 @@ static class BackgroundServices
                         entry = new BgEntry { Id = item.Id, Original = original };
                         state.Add(entry);
                     }
-                    if (entry.Mode != PauseMode.Permanent) entry.Mode = mode; // «насовсем» не понижаем до временного
+                    if (entry.Mode != PauseMode.Permanent) entry.Mode = mode; // never downgrade "permanent" to temporary
                     entry.BootTimeUtc = Baseline.CurrentBootUtc;
                     entry.At = DateTime.Now;
                     ok++;
-                    Log.Write($"Фон: {item.Title} → {(mode == PauseMode.Temporary ? "на время игры" : "насовсем")}");
+                    Log.Write($"Background: {item.Title} → {(mode == PauseMode.Temporary ? "paused for this session" : "disabled permanently")}");
                 }
                 catch (Exception ex)
                 {
                     errors.Add($"{item.Title}: {ex.Message}");
-                    Log.Write($"Фон: {item.Title} не изменён: {ex.Message}");
+                    Log.Write($"Background: {item.Title} not changed: {ex.Message}");
                 }
             }
             SaveState(state);
@@ -493,7 +496,7 @@ static class BackgroundServices
         }
     }
 
-    /// <summary>Возвращает всё как было. onlyTemporaryFromOldBoot — для автоотката после перезагрузки.</summary>
+    /// <summary>Restores everything. onlyTemporaryFromOldBoot is used for the automatic restore after a reboot.</summary>
     public static (int ok, List<string> errors) Restore(bool onlyTemporaryFromOldBoot = false) =>
         Restore(e => !onlyTemporaryFromOldBoot ||
                      (e.Mode == PauseMode.Temporary && Math.Abs((e.BootTimeUtc - Baseline.CurrentBootUtc).TotalMinutes) >= 2));
@@ -522,12 +525,12 @@ static class BackgroundServices
                     item.Restore(entry.Original);
                     state.Remove(entry);
                     ok++;
-                    Log.Write($"Фон: {item.Title} возвращено как было");
+                    Log.Write($"Background: {item.Title} restored");
                 }
                 catch (Exception ex)
                 {
                     errors.Add($"{item.Title}: {ex.Message}");
-                    Log.Write($"Фон: {item.Title} не удалось вернуть: {ex.Message}");
+                    Log.Write($"Background: could not restore {item.Title}: {ex.Message}");
                 }
             }
             SaveState(state);
@@ -540,16 +543,18 @@ static class BackgroundServices
     {
         var e = state.FirstOrDefault(s => s.Id == item.Id);
         if (e == null) return null;
-        return e.Mode == PauseMode.Temporary ? $"на время игры (с {e.At:HH:mm})" : $"насовсем (с {e.At:dd.MM})";
+        return e.Mode == PauseMode.Temporary
+            ? $"paused for session (since {e.At.ToString("HH:mm", CultureInfo.InvariantCulture)})"
+            : $"disabled (since {e.At.ToString("MMM d", CultureInfo.InvariantCulture)})";
     }
 
-    /// <summary>Срабатывает после любого изменения (из окна, из трея, из подготовки). Вызывается не из UI-потока.</summary>
+    /// <summary>Raised after any change (from the window, the tray or game prep). Not raised on the UI thread.</summary>
     public static event Action? Changed;
 
     static void RaiseChanged()
     {
         try { Changed?.Invoke(); }
-        catch (Exception ex) { Log.Write($"Обработчик BackgroundServices.Changed упал: {ex.Message}"); }
+        catch (Exception ex) { Log.Write($"BackgroundServices.Changed handler failed: {ex.Message}"); }
     }
 
     public static BgStatus GetStatus(BgItem item, List<BgEntry> state)
@@ -562,9 +567,9 @@ static class BackgroundServices
     }
 
     /// <summary>
-    /// Переключатель одного пункта: работает → на время игры; приостановлено StaScan → как было;
-    /// отключено вручную в Windows → включить со значением Windows по умолчанию.
-    /// Возвращает текст для уведомления, при ошибке бросает исключение.
+    /// Toggles a single item: running → paused for the session; paused by StaScan → restored;
+    /// disabled manually in Windows → enabled with the Windows default.
+    /// Returns a notification text; throws on failure.
     /// </summary>
     public static string Toggle(string id)
     {
@@ -576,28 +581,28 @@ static class BackgroundServices
             {
                 var (_, errors) = RestoreOne(id);
                 if (errors.Count > 0) throw new InvalidOperationException(errors[0]);
-                return $"{item.Title}: возвращено как было";
+                return $"{item.Title}: restored";
             }
             case BgStatus.OffInWindows:
                 lock (Sync) item.EnableDefault();
-                Log.Write($"Фон: {item.Title} включено со значением Windows по умолчанию");
+                Log.Write($"Background: {item.Title} enabled with the Windows default");
                 RaiseChanged();
-                return $"{item.Title}: включено (как в Windows по умолчанию)";
+                return $"{item.Title}: enabled (Windows default)";
             default:
             {
                 var (_, errors) = Apply(new[] { id }, PauseMode.Temporary);
                 if (errors.Count > 0) throw new InvalidOperationException(errors[0]);
-                return $"{item.Title}: приостановлено на время игры";
+                return $"{item.Title}: paused for this gaming session";
             }
         }
     }
 
     public static string StatusText(BgStatus s) => s switch
     {
-        BgStatus.PausedForGame => "на время игры",
-        BgStatus.DisabledPermanently => "отключено насовсем",
-        BgStatus.OffInWindows => "отключено в Windows",
-        _ => "работает",
+        BgStatus.PausedForGame => "paused for session",
+        BgStatus.DisabledPermanently => "disabled permanently",
+        BgStatus.OffInWindows => "disabled in Windows",
+        _ => "running",
     };
 }
 

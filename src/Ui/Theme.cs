@@ -6,7 +6,7 @@ namespace StaScan;
 
 enum ThemeMode { System, Light, Dark }
 
-/// <summary>Цвета одной темы. Все элементы интерфейса берут цвета только отсюда.</summary>
+/// <summary>Colors of a single theme. Every UI element takes its colors from here only.</summary>
 sealed record Palette(
     bool IsDark,
     Color Bg, Color Surface, Color SurfaceHover,
@@ -57,7 +57,7 @@ static class Theme
         };
     }
 
-    /// <summary>Тёмная ли тема приложений в Параметрах Windows.</summary>
+    /// <summary>Whether the app theme in Windows Settings is dark.</summary>
     public static bool SystemIsDark()
     {
         try
@@ -71,7 +71,7 @@ static class Theme
         }
     }
 
-    // ── Готовые элементы ──────────────────────────────────────────────────────────
+    // ── Building blocks ──────────────────────────────────────────────────────────
 
     public static Label PageTitle(string text) => new()
     {
@@ -110,7 +110,7 @@ static class Theme
         Margin = new Padding(0, 3, 0, 3),
     };
 
-    /// <summary>Тулбар с кнопками: одинаковые отступы во всех разделах.</summary>
+    /// <summary>Button toolbar with the same spacing in every section.</summary>
     public static FlowLayoutPanel Toolbar(params Control[] controls)
     {
         var bar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(16, 4, 16, 8), WrapContents = true };
@@ -131,7 +131,7 @@ static class Theme
             ShowItemToolTips = true,
             OwnerDraw = true,
         };
-        // свой заголовок: стандартный всегда светлый
+        // custom header: the standard one is always light
         lv.DrawColumnHeader += (_, e) =>
         {
             using var bg = new SolidBrush(P.Surface);
@@ -150,7 +150,7 @@ static class Theme
         lv.DrawItem += (_, e) => e.DrawDefault = true;
         lv.DrawSubItem += (_, e) => e.DrawDefault = true;
 
-        // последняя колонка растягивается до края, чтобы справа не оставался «пустой» светлый кусок заголовка
+        // stretch the last column to the edge so no empty light header area is left on the right
         bool fitting = false;
         void Fit()
         {
@@ -168,7 +168,7 @@ static class Theme
         return lv;
     }
 
-    // ── Применение темы ───────────────────────────────────────────────────────────
+    // ── Applying the theme ───────────────────────────────────────────────────────────
 
     [DllImport("dwmapi.dll")]
     static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
@@ -176,7 +176,7 @@ static class Theme
     [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
     static extern int SetWindowTheme(IntPtr hwnd, string? app, string? idList);
 
-    /// <summary>Тёмный заголовок окна (Windows 10 20H1+ / 11).</summary>
+    /// <summary>Dark window title bar (Windows 10 20H1+ / 11).</summary>
     public static void ApplyTitleBar(Form f)
     {
         void Apply()
@@ -188,8 +188,8 @@ static class Theme
     }
 
     /// <summary>
-    /// Проходит по дереву элементов и красит стандартные контролы, которые не берут цвета родителя сами
-    /// (поля ввода, списки, галки, полосы прокрутки).
+    /// Walks the control tree and colors standard controls that do not inherit their parent's colors
+    /// (text boxes, lists, check boxes, scroll bars).
     /// </summary>
     public static void Style(Control root)
     {
@@ -303,7 +303,7 @@ static class Theme
 
 enum ButtonKind { Primary, Secondary, Nav, Icon }
 
-/// <summary>Единая кнопка приложения: скруглённая, одной высоты, цвета из темы.</summary>
+/// <summary>The app's single button style: rounded, fixed height, theme colors.</summary>
 sealed class UiButton : Button
 {
     public ButtonKind Kind { get; }
@@ -401,7 +401,7 @@ sealed class UiButton : Button
     }
 }
 
-/// <summary>Переключатель в стиле Windows 11. Сам не переключается: состояние ставит владелец после выполнения действия.</summary>
+/// <summary>Windows 11 style toggle switch. It does not toggle itself: the owner sets the state after the action completes.</summary>
 sealed class ToggleSwitch : CheckBox
 {
     public ToggleSwitch()

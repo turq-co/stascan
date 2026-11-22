@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace StaScan;
 
-/// <summary>Снимок «чистого» набора процессов после входа в Windows.</summary>
+/// <summary>Snapshot of the "clean" set of processes taken after signing in to Windows.</summary>
 sealed class Baseline
 {
     public DateTime BootTimeUtc { get; set; }
@@ -22,10 +22,10 @@ sealed class Baseline
         return _set.Contains(key);
     }
 
-    /// <summary>true, если снимок сделан в текущем сеансе Windows (после последней загрузки).</summary>
+    /// <summary>True if the snapshot was taken during the current Windows session (after the last boot).</summary>
     public bool IsFromCurrentBoot => Math.Abs((BootTimeUtc - CurrentBootUtc).TotalMinutes) < 2;
 
-    /// <summary>Берёт снимок этой загрузки из файла, если он есть, иначе делает новый.</summary>
+    /// <summary>Reuses this boot's snapshot from disk if there is one, otherwise takes a new one.</summary>
     public static (Baseline baseline, bool reused) LoadOrTake()
     {
         try
@@ -35,14 +35,14 @@ sealed class Baseline
                 var b = JsonSerializer.Deserialize<Baseline>(File.ReadAllText(FilePath));
                 if (b != null && b.IsFromCurrentBoot)
                 {
-                    Log.Write($"Снимок от {b.TakenAt:HH:mm} этой загрузки взят из файла ({b.Keys.Count} записей)");
+                    Log.Write($"Reusing snapshot from {b.TakenAt:HH:mm} of this boot ({b.Keys.Count} entries)");
                     return (b, true);
                 }
             }
         }
         catch (Exception ex)
         {
-            Log.Write($"baseline.json не прочитан: {ex.Message}");
+            Log.Write($"Could not read baseline.json: {ex.Message}");
         }
         return (Take(), false);
     }
@@ -61,9 +61,9 @@ sealed class Baseline
         }
         catch (Exception ex)
         {
-            Log.Write($"Не удалось сохранить baseline.json: {ex.Message}");
+            Log.Write($"Could not save baseline.json: {ex.Message}");
         }
-        Log.Write($"Сделан новый снимок: {b.Keys.Count} записей");
+        Log.Write($"New snapshot taken: {b.Keys.Count} entries");
         return b;
     }
 }

@@ -15,17 +15,17 @@ static class Program
     [STAThread]
     static void Main()
     {
-        FreeConsole(); // dotnet.exe консольный: убираем его окно
+        FreeConsole(); // dotnet.exe is a console host: get rid of its window
         ApplicationConfiguration.Initialize();
 
         if (AlreadyRunning())
         {
-            MessageBox.Show("StaScan уже запущен: значок в трее рядом с часами.", "StaScan",
+            MessageBox.Show("StaScan is already running. Look for its icon in the notification area next to the clock.", "StaScan",
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
-        // Через dotnet.exe манифест requireAdministrator не действует, поэтому права поднимаем сами.
+        // When launched through dotnet.exe the requireAdministrator manifest does not apply, so elevate ourselves.
         if (!IsAdministrator())
         {
             RelaunchElevated();
@@ -34,10 +34,10 @@ static class Program
 
         using var mutex = new Mutex(true, MutexName, out _);
 
-        Application.ThreadException += (_, e) => Log.Write($"Ошибка UI: {e.Exception}");
-        AppDomain.CurrentDomain.UnhandledException += (_, e) => Log.Write($"Необработанная ошибка: {e.ExceptionObject}");
+        Application.ThreadException += (_, e) => Log.Write($"UI error: {e.Exception}");
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => Log.Write($"Unhandled exception: {e.ExceptionObject}");
 
-        Log.Write("──── StaScan запущен ────");
+        Log.Write("──── StaScan started ────");
         Application.Run(new TrayContext());
     }
 
@@ -51,7 +51,7 @@ static class Program
         }
         catch (UnauthorizedAccessException)
         {
-            return true; // мьютекс есть, но принадлежит экземпляру с правами администратора
+            return true; // the mutex exists but belongs to an elevated instance
         }
     }
 
@@ -60,8 +60,8 @@ static class Program
 
     static void RelaunchElevated()
     {
-        // Если автозапуск настроен, задача планировщика даёт права админа без окна UAC.
-        // Если задача указывает на старый путь и ничего не запустилось, переходим на UAC.
+        // If autostart is configured, the scheduled task grants admin rights without a UAC prompt.
+        // If the task points to an old path and nothing starts, fall back to UAC.
         if (Autostart.IsEnabled && Autostart.RunMainTask())
         {
             for (int i = 0; i < 20; i++)
@@ -78,7 +78,7 @@ static class Program
         }
         catch (Win32Exception)
         {
-            MessageBox.Show("StaScan нужны права администратора, чтобы закрывать процессы и чистить память.",
+            MessageBox.Show("StaScan needs administrator rights to close processes and free memory.",
                 "StaScan", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }

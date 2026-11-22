@@ -4,7 +4,7 @@ namespace StaScan;
 
 sealed record ProcInfo(int Pid, string ExeName, string? Path, int SessionId, long WorkingSet)
 {
-    /// <summary>Ключ для сравнения со снимком: путь к exe, а без пути имя процесса.</summary>
+    /// <summary>Key compared against the snapshot: the executable path, or the process name when the path is unknown.</summary>
     public string Key => (Path ?? ExeName).ToLowerInvariant();
 }
 
@@ -18,7 +18,7 @@ sealed class ProcessGroup
 
 static class ProcessScanner
 {
-    /// <summary>Системные процессы, которые нельзя закрывать ни при каких условиях.</summary>
+    /// <summary>System processes that must never be closed.</summary>
     static readonly HashSet<string> Protected = new(StringComparer.OrdinalIgnoreCase)
     {
         "system", "idle", "registry", "memory compression", "secure system",
@@ -48,14 +48,14 @@ static class ProcessScanner
                 }
                 catch
                 {
-                    // процесс успел завершиться
+                    // the process has already exited
                 }
             }
         }
         return result;
     }
 
-    /// <summary>Процессы, появившиеся после снимка, сгруппированные по exe.</summary>
+    /// <summary>Processes started after the snapshot, grouped by executable.</summary>
     public static List<ProcessGroup> FindCandidates(Baseline baseline, Settings settings)
     {
         int mySession = Process.GetCurrentProcess().SessionId;
@@ -65,7 +65,7 @@ static class ProcessScanner
         foreach (var p in Snapshot())
         {
             if (p.Pid == myPid || p.SessionId != mySession) continue;
-            if (p.Path == null) continue; // без пути не понять, что это: не трогаем
+            if (p.Path == null) continue; // without a path we cannot tell what it is: leave it alone
             if (p.Path.StartsWith(WindowsDir, StringComparison.OrdinalIgnoreCase)) continue;
             if (Protected.Contains(p.ExeName) || settings.IsWhitelisted(p.ExeName)) continue;
             if (baseline.Contains(p.Key)) continue;

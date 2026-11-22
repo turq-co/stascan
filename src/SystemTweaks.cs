@@ -5,9 +5,9 @@ namespace StaScan;
 static class SystemTweaks
 {
     /// <summary>
-    /// Перезапуск проводника. Explorer завершаем, а поднимает его сам Winlogon (AutoRestartShell),
-    /// поэтому он стартует с обычными правами, а не с правами администратора, как StaScan.
-    /// Если за 6 секунд он не появился, запускаем через задачу планировщика без повышения прав.
+    /// Restarts File Explorer. We terminate explorer and let Winlogon bring it back (AutoRestartShell),
+    /// so it starts with normal rights rather than the administrator rights StaScan has.
+    /// If it does not come back within 6 seconds, it is started through a non-elevated scheduled task.
     /// </summary>
     public static bool RestartExplorer()
     {
@@ -24,7 +24,7 @@ static class SystemTweaks
             }
             catch (Exception ex)
             {
-                Log.Write($"explorer не завершён: {ex.Message}");
+                Log.Write($"Could not terminate explorer: {ex.Message}");
             }
             finally
             {
@@ -34,18 +34,18 @@ static class SystemTweaks
 
         if (WaitForExplorer(session, oldIds, 6000))
         {
-            Log.Write("Explorer перезапущен (Winlogon)");
+            Log.Write("Explorer restarted (Winlogon)");
             return true;
         }
 
-        Log.Write("Explorer сам не поднялся, запускаю через задачу StaScanExplorer");
+        Log.Write("Explorer did not come back by itself, starting it through the StaScanExplorer task");
         if (Autostart.RunExplorerTask() && WaitForExplorer(session, oldIds, 6000))
         {
-            Log.Write("Explorer перезапущен (задача планировщика)");
+            Log.Write("Explorer restarted (scheduled task)");
             return true;
         }
 
-        Log.Write("Не удалось перезапустить explorer");
+        Log.Write("Could not restart explorer");
         return false;
     }
 
@@ -59,7 +59,7 @@ static class SystemTweaks
             foreach (var p in found) p.Dispose();
             if (ok)
             {
-                Thread.Sleep(1500); // даём панели задач прорисоваться
+                Thread.Sleep(1500); // give the taskbar time to draw
                 return true;
             }
             Thread.Sleep(300);
@@ -70,11 +70,11 @@ static class SystemTweaks
     public static bool FlushDns()
     {
         bool ok = Native.DnsFlushResolverCache();
-        Log.Write(ok ? "DNS-кэш сброшен" : "DNS-кэш не сброшен");
+        Log.Write(ok ? "DNS cache flushed" : "DNS cache was not flushed");
         return ok;
     }
 
-    /// <summary>Удаляет из %TEMP% всё старше суток. Занятые файлы пропускает.</summary>
+    /// <summary>Deletes everything older than 24 hours from %TEMP%. Files in use are skipped.</summary>
     public static (int files, ulong bytes) CleanTemp()
     {
         var root = new DirectoryInfo(Path.GetTempPath());
@@ -97,11 +97,11 @@ static class SystemTweaks
                 }
                 catch
                 {
-                    // файл занят
+                    // file in use
                 }
             }
 
-            // пустые папки, самые глубокие первыми
+            // empty folders, deepest first
             var dirs = root.EnumerateDirectories("*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true })
                 .OrderByDescending(d => d.FullName.Length);
             foreach (var d in dirs)
@@ -115,10 +115,10 @@ static class SystemTweaks
         }
         catch (Exception ex)
         {
-            Log.Write($"Очистка TEMP прервана: {ex.Message}");
+            Log.Write($"TEMP cleanup interrupted: {ex.Message}");
         }
 
-        Log.Write($"TEMP: удалено файлов {files}, {Native.Mb(bytes)}");
+        Log.Write($"TEMP: deleted {files} files, {Native.Mb(bytes)}");
         return (files, bytes);
     }
 }

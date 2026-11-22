@@ -4,7 +4,7 @@ namespace StaScan;
 
 sealed class Settings
 {
-    /// <summary>Имена exe, которые никогда не предлагаются к закрытию.</summary>
+    /// <summary>Executable names that are never offered for closing.</summary>
     public List<string> Whitelist { get; set; } = new()
     {
         "steam.exe", "steamwebhelper.exe", "steamservice.exe", "gameoverlayui.exe",
@@ -20,15 +20,15 @@ sealed class Settings
     public bool RestartExplorer { get; set; } = true;
     public bool FlushDnsAndTemp { get; set; } = true;
 
-    /// <summary>Снимать CPU 0 с cs2.exe (StaScan следит за процессом, пока опция включена).</summary>
+    /// <summary>Remove CPU 0 from cs2.exe (StaScan watches for the process while this is on).</summary>
     public bool Cs2SkipCpu0 { get; set; }
 
     public ThemeMode Theme { get; set; } = ThemeMode.System;
 
-    /// <summary>Приостанавливать фоновые службы с галкой «В подготовке» кнопкой «Подготовить к игре».</summary>
+    /// <summary>Pause background services marked "Include in prep" when "Prepare for gaming" is clicked.</summary>
     public bool PauseBackground { get; set; }
 
-    /// <summary>Какие пункты из окна «Фоновые службы Windows» приостанавливать. По умолчанию все.</summary>
+    /// <summary>Which background service items to pause during game prep. All by default.</summary>
     public List<string> BackgroundItemIds { get; set; } = BackgroundServices.Catalog.Select(i => i.Id).ToList();
 
     static string FilePath => AppPaths.File("settings.json");
@@ -46,7 +46,7 @@ sealed class Settings
         }
         catch (Exception ex)
         {
-            Log.Write($"settings.json не прочитан, беру настройки по умолчанию: {ex.Message}");
+            Log.Write($"Could not read settings.json, using defaults: {ex.Message}");
         }
         return new Settings();
     }
@@ -59,7 +59,7 @@ sealed class Settings
         }
         catch (Exception ex)
         {
-            Log.Write($"Не удалось сохранить settings.json: {ex.Message}");
+            Log.Write($"Could not save settings.json: {ex.Message}");
         }
     }
 }

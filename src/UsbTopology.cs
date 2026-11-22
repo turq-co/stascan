@@ -1,11 +1,11 @@
-// Проверка USB-подключения устройств ввода: сколько «чипов» (хабов и чипсет) стоит между устройством и CPU.
+// USB connection check for input devices: how many "chips" (hubs and the chipset) sit between a device and the CPU.
 //
-// Алгоритм и таблица контроллеров портированы из проекта cpu-direct-usb (USB Latency Analyzer V2):
+// The algorithm and the controller table are ported from cpu-direct-usb (USB Latency Analyzer V2):
 //   https://github.com/MariusHeier/cpu-direct-usb
-//   Copyright (c) 2025 Marius Heier, MIT License (полный текст в THIRD_PARTY_NOTICES.md).
-// Таблица в оригинале собрана из Linux xhci-pci.c и pci.ids.
-// Отличия от оригинала: хабы определяются по USB-классу 09, а не по слову «Hub» в имени;
-// одинаковые устройства в разных портах не склеиваются; используется CfgMgr32 вместо Get-PnpDevice.
+//   Copyright (c) 2025 Marius Heier, MIT License (full text in THIRD_PARTY_NOTICES.md).
+// The original table was compiled from Linux xhci-pci.c and pci.ids.
+// Differences from the original: hubs are detected by USB class 09 rather than the word "Hub" in the name;
+// identical devices on different ports are not merged; CfgMgr32 is used instead of Get-PnpDevice.
 
 using System.Runtime.InteropServices;
 using System.Text;
@@ -19,11 +19,11 @@ sealed record UsbController(string InstanceId, string Vid, string Did, string Na
 {
     public string KindText => Kind switch
     {
-        ControllerKind.Cpu => "внутри CPU",
-        ControllerKind.Thunderbolt => "Thunderbolt (напрямую)",
-        ControllerKind.Chipset => "чипсет",
-        ControllerKind.AddOn => "отдельный чип на плате / PCIe-карта",
-        _ => "неизвестный",
+        ControllerKind.Cpu => "inside the CPU",
+        ControllerKind.Thunderbolt => "Thunderbolt (direct)",
+        ControllerKind.Chipset => "chipset",
+        ControllerKind.AddOn => "separate chip / PCIe card",
+        _ => "unknown",
     };
 }
 
@@ -38,7 +38,7 @@ static class UsbTopology
     {
         var all = Cm.ListDeviceIds("USB");
 
-        // Все контроллеры: родители корневых хабов
+        // All controllers: parents of the root hubs
         var controllers = new Dictionary<string, UsbController>(StringComparer.OrdinalIgnoreCase);
         foreach (var id in all.Where(i => i.StartsWith(@"USB\ROOT_HUB", StringComparison.OrdinalIgnoreCase)))
         {
@@ -47,7 +47,7 @@ static class UsbTopology
                 controllers[ctrlId] = Classify(ctrlId);
         }
 
-        // Устройства ввода: интерфейсы класса HID (03); узел устройства — сам узел или родитель-композит
+        // Input devices: HID class (03) interfaces; the device node is the node itself or its composite parent
         var nodes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); // device node -> kind
         foreach (var id in all)
         {
@@ -55,8 +55,8 @@ static class UsbTopology
             if (!compat.Any(c => c.StartsWith(@"USB\Class_03", StringComparison.OrdinalIgnoreCase))) continue;
 
             var node = id.Contains("&MI_", StringComparison.OrdinalIgnoreCase) ? Cm.ParentId(id) ?? id : id;
-            string kind = compat.Any(c => c.Contains("SubClass_01&Prot_02", StringComparison.OrdinalIgnoreCase)) ? "мышь"
-                        : compat.Any(c => c.Contains("SubClass_01&Prot_01", StringComparison.OrdinalIgnoreCase)) ? "клавиатура"
+            string kind = compat.Any(c => c.Contains("SubClass_01&Prot_02", StringComparison.OrdinalIgnoreCase)) ? "mouse"
+                        : compat.Any(c => c.Contains("SubClass_01&Prot_01", StringComparison.OrdinalIgnoreCase)) ? "keyboard"
                         : "";
             nodes.TryGetValue(node, out var prev);
             nodes[node] = MergeKinds(prev, kind);
@@ -125,10 +125,10 @@ static class UsbTopology
         if (vid == "1022" && AmdCpu.TryGetValue(did, out e)) return Make(ControllerKind.Cpu, 0, e.Name, e.Platform);
         if (vid == "1022" && AmdChipset.TryGetValue(did, out e)) return Make(ControllerKind.Chipset, 1, e.Name, e.Platform);
         if (ThirdParty.TryGetValue($"{vid}:{did}", out e)) return Make(ControllerKind.AddOn, 1, e.Name, e.Platform);
-        if (AddOnVendors.TryGetValue(vid, out var vendor)) return Make(ControllerKind.AddOn, 1, $"{vendor} Controller", "PCIe / отдельный чип");
-        if (vid == "8086") return Make(ControllerKind.Chipset, 1, friendly, $"Intel, нет в базе (DID {did}), считаю чипсетом");
-        if (vid == "1022") return Make(ControllerKind.Chipset, 1, friendly, $"AMD, нет в базе (DID {did}), считаю чипсетом");
-        return Make(ControllerKind.Unknown, 1, friendly, $"VID {vid} DID {did}, нет в базе");
+        if (AddOnVendors.TryGetValue(vid, out var vendor)) return Make(ControllerKind.AddOn, 1, $"{vendor} Controller", "PCIe / separate chip");
+        if (vid == "8086") return Make(ControllerKind.Chipset, 1, friendly, $"Intel, not in database (DID {did}), assuming chipset");
+        if (vid == "1022") return Make(ControllerKind.Chipset, 1, friendly, $"AMD, not in database (DID {did}), assuming chipset");
+        return Make(ControllerKind.Unknown, 1, friendly, $"VID {vid} DID {did}, not in database");
     }
 
     readonly record struct Entry(string Name, string Platform);
@@ -136,7 +136,7 @@ static class UsbTopology
     static Dictionary<string, Entry> T(params (string did, string name, string platform)[] rows) =>
         rows.ToDictionary(r => r.did, r => new Entry(r.name, r.platform), StringComparer.OrdinalIgnoreCase);
 
-    // ── Таблицы из cpu-direct-usb (MIT) ──────────────────────────────────────────────
+    // ── Tables from cpu-direct-usb (MIT) ──────────────────────────────────────────────
 
     static readonly Dictionary<string, Entry> IntelCpu = T(
         ("8a13", "Ice Lake Thunderbolt 3 USB Controller", "Ice Lake (10th Gen)"),

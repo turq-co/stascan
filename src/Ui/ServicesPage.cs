@@ -1,6 +1,6 @@
 namespace StaScan;
 
-/// <summary>Раздел «Фоновые службы»: у каждой службы свой переключатель.</summary>
+/// <summary>"Background services" section: every service has its own toggle.</summary>
 sealed class ServicesPage : UserControl, IPage
 {
     readonly AppServices _app;
@@ -18,12 +18,12 @@ sealed class ServicesPage : UserControl, IPage
         _app = app;
         var P = Theme.P;
 
-        var title = Theme.PageTitle("Фоновые службы Windows");
+        var title = Theme.PageTitle("Windows background services");
         var hint = Theme.PageHint(
-            "Переключатель выключает службу на время игры: после перезагрузки StaScan вернёт её сам. " +
-            "Через «⋯» можно отключить насовсем.", 40);
+            "A toggle pauses the service for this gaming session; StaScan restores it automatically after a reboot. " +
+            "Use ⋯ to disable an item permanently.", 40);
 
-        _withPrepare = Theme.Check("Приостанавливать службы с галкой «В подготовке» при нажатии «Подготовить к игре»", app.Settings.PauseBackground);
+        _withPrepare = Theme.Check("Pause services marked \"Include in prep\" when \"Prepare for gaming\" is clicked", app.Settings.PauseBackground);
         _withPrepare.CheckedChanged += (_, _) =>
         {
             _app.Settings.PauseBackground = _withPrepare.Checked;
@@ -33,11 +33,11 @@ sealed class ServicesPage : UserControl, IPage
         var optionHost = new Panel { Dock = DockStyle.Top, Height = 36 };
         optionHost.Controls.Add(_withPrepare);
 
-        _pauseSelected = Theme.Primary("Приостановить отмеченные сейчас");
-        _restoreAll = Theme.Secondary("Вернуть всё как было");
-        _refresh = Theme.Secondary("Обновить");
-        _pauseSelected.Click += async (_, _) => await RunBulk(() => BackgroundServices.Apply(_app.Settings.BackgroundItemIds, PauseMode.Temporary), "Приостановлено");
-        _restoreAll.Click += async (_, _) => await RunBulk(() => BackgroundServices.Restore(), "Возвращено");
+        _pauseSelected = Theme.Primary("Pause marked now");
+        _restoreAll = Theme.Secondary("Restore all");
+        _refresh = Theme.Secondary("Refresh");
+        _pauseSelected.Click += async (_, _) => await RunBulk(() => BackgroundServices.Apply(_app.Settings.BackgroundItemIds, PauseMode.Temporary), "Paused");
+        _restoreAll.Click += async (_, _) => await RunBulk(() => BackgroundServices.Restore(), "Restored");
         _refresh.Click += (_, _) => RefreshAll();
         var toolbar = Theme.Toolbar(_pauseSelected, _restoreAll, _refresh);
 
@@ -65,19 +65,19 @@ sealed class ServicesPage : UserControl, IPage
             row.ToggleRequested += async () => await RunOne(() => BackgroundServices.Toggle(item.Id));
             row.PermanentRequested += async () =>
             {
-                if (Confirm($"«{item.Title}» будет отключено и не включится после перезагрузки, пока вы не вернёте его здесь или в трее. Продолжить?"))
+                if (Confirm($"\"{item.Title}\" will be disabled and will stay off after a reboot until you restore it here or from the tray menu. Continue?"))
                     await RunOne(() =>
                     {
                         var (_, errors) = BackgroundServices.Apply(new[] { item.Id }, PauseMode.Permanent);
                         if (errors.Count > 0) throw new InvalidOperationException(errors[0]);
-                        return $"{item.Title}: отключено насовсем";
+                        return $"{item.Title}: disabled permanently";
                     });
             };
             row.RestoreRequested += async () => await RunOne(() =>
             {
                 var (ok, errors) = BackgroundServices.RestoreOne(item.Id);
                 if (errors.Count > 0) throw new InvalidOperationException(errors[0]);
-                return ok > 0 ? $"{item.Title}: возвращено как было" : $"{item.Title}: StaScan его не менял";
+                return ok > 0 ? $"{item.Title}: restored" : $"{item.Title}: StaScan has not changed it";
             });
             row.InPrepareChanged += on =>
             {
@@ -119,7 +119,7 @@ sealed class ServicesPage : UserControl, IPage
         foreach (Control c in _rows.Controls) c.Width = Math.Max(400, w);
     }
 
-    /// <summary>Состояние читаем в фоне: опрос служб и планировщика занимает заметное время.</summary>
+    /// <summary>State is read in the background: querying services and Task Scheduler takes noticeable time.</summary>
     async void RefreshAll()
     {
         if (IsBusy) return;
@@ -129,7 +129,7 @@ sealed class ServicesPage : UserControl, IPage
             return _rowList.Select(r =>
             {
                 string now;
-                try { now = r.Item.Describe(); } catch (Exception ex) { now = "ошибка: " + ex.Message; }
+                try { now = r.Item.Describe(); } catch (Exception ex) { now = "error: " + ex.Message; }
                 return (row: r, status: BackgroundServices.GetStatus(r.Item, state), now, mark: BackgroundServices.PausedMark(r.Item, state));
             }).ToList();
         });
@@ -151,8 +151,8 @@ sealed class ServicesPage : UserControl, IPage
         catch (Exception ex)
         {
             _status.ForeColor = Theme.P.Warn;
-            _status.Text = "Не получилось: " + ex.Message;
-            Log.Write($"Службы: {ex.Message}");
+            _status.Text = "Failed: " + ex.Message;
+            Log.Write($"Services: {ex.Message}");
         }
         finally
         {
@@ -168,8 +168,8 @@ sealed class ServicesPage : UserControl, IPage
         {
             var (ok, errors) = await Task.Run(action);
             _status.ForeColor = errors.Count > 0 ? Theme.P.Warn : Theme.P.Muted;
-            _status.Text = $"{doneText}: {ok}." + (errors.Count > 0 ? "  Не получилось: " + string.Join("; ", errors) : "");
-            _app.Notify($"{doneText}: {ok}." + (errors.Count > 0 ? $" Ошибок: {errors.Count}." : ""),
+            _status.Text = $"{doneText}: {ok}." + (errors.Count > 0 ? "  Failed: " + string.Join("; ", errors) : "");
+            _app.Notify($"{doneText}: {ok}." + (errors.Count > 0 ? $" Errors: {errors.Count}." : ""),
                 errors.Count > 0 ? ToolTipIcon.Warning : ToolTipIcon.Info);
         }
         finally
@@ -186,14 +186,14 @@ sealed class ServicesPage : UserControl, IPage
         foreach (var c in new Control[] { _pauseSelected, _restoreAll, _refresh }) c.Enabled = !b;
         foreach (var r in _rowList) r.Enabled = !b;
         UseWaitCursor = b;
-        if (b) { _status.ForeColor = Theme.P.Muted; _status.Text = "Выполняю…"; }
+        if (b) { _status.ForeColor = Theme.P.Muted; _status.Text = "Working…"; }
     }
 
     bool Confirm(string text) =>
         MessageBox.Show(FindForm(), text, "StaScan", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes;
 }
 
-/// <summary>Строка службы: переключатель, название с описанием, состояние, галка «В подготовке», меню «⋯».</summary>
+/// <summary>Service row: toggle, title with description, state, "Include in prep" checkbox, ⋯ menu.</summary>
 sealed class ServiceRow : UserControl
 {
     public BgItem Item { get; }
@@ -225,14 +225,14 @@ sealed class ServiceRow : UserControl
 
         _state = new Label { AutoSize = false, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = Theme.Small };
 
-        var prep = Theme.Check("В подготовке", inPrepare);
+        var prep = Theme.Check("Include in prep", inPrepare);
         prep.Anchor = AnchorStyles.Left;
         prep.CheckedChanged += (_, _) => InPrepareChanged?.Invoke(prep.Checked);
-        _tip.SetToolTip(prep, "Приостанавливать этот пункт кнопкой «Подготовить к игре» (если это включено вверху раздела)");
+        _tip.SetToolTip(prep, "Pause this item with \"Prepare for gaming\" (when enabled at the top of this section)");
 
         var menu = new ContextMenuStrip { Renderer = Theme.MenuRenderer() };
-        _permItem = new ToolStripMenuItem("Отключить насовсем…", null, (_, _) => PermanentRequested?.Invoke());
-        _restoreItem = new ToolStripMenuItem("Вернуть как было", null, (_, _) => RestoreRequested?.Invoke());
+        _permItem = new ToolStripMenuItem("Disable permanently…", null, (_, _) => PermanentRequested?.Invoke());
+        _restoreItem = new ToolStripMenuItem("Restore", null, (_, _) => RestoreRequested?.Invoke());
         menu.Items.Add(_permItem);
         menu.Items.Add(_restoreItem);
         var more = new UiButton("⋯", ButtonKind.Icon) { Anchor = AnchorStyles.None };
@@ -271,13 +271,13 @@ sealed class ServiceRow : UserControl
         _state.Text = status switch
         {
             BgStatus.PausedForGame or BgStatus.DisabledPermanently => $"{mark}\n{now}",
-            BgStatus.OffInWindows => $"отключено в Windows\n{now}",
+            BgStatus.OffInWindows => $"disabled in Windows\n{now}",
             _ => now,
         };
         _permItem.Enabled = status != BgStatus.DisabledPermanently && status != BgStatus.OffInWindows;
         _restoreItem.Enabled = status is BgStatus.PausedForGame or BgStatus.DisabledPermanently;
         _tip.SetToolTip(_switch, status == BgStatus.OffInWindows
-            ? "Отключено не через StaScan. Включить = вернуть значение Windows по умолчанию"
-            : "Вкл. = работает. Выключить = приостановить на время игры");
+            ? "Disabled outside StaScan. Turning it on applies the Windows default"
+            : "On = running. Turn off to pause for this gaming session");
     }
 }

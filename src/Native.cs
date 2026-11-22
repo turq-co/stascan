@@ -68,7 +68,7 @@ static class Native
         public uint HandleCount, ProcessCount, ThreadCount;
     }
 
-    /// <summary>Полный путь к exe процесса или null, если доступа нет.</summary>
+    /// <summary>Full path of the process executable, or null when access is denied.</summary>
     public static string? GetProcessPath(int pid)
     {
         IntPtr h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
@@ -104,7 +104,7 @@ static class Native
 
     public readonly record struct MemoryLists(ulong FreeBytes, ulong StandbyBytes, ulong ModifiedBytes);
 
-    /// <summary>Списки физической памяти (как в RAMMap). Нужна SeProfileSingleProcessPrivilege.</summary>
+    /// <summary>Physical memory page lists (as shown in RAMMap). Requires SeProfileSingleProcessPrivilege.</summary>
     public static MemoryLists? QueryMemoryLists()
     {
         // SYSTEM_MEMORY_LIST_INFORMATION: Zero, Free, Modified, ModifiedNoWrite, Bad,
@@ -133,6 +133,8 @@ static class Native
         return (ulong)pi.KernelNonpaged * (ulong)pi.PageSize;
     }
 
-    public static string Gb(ulong bytes) => $"{bytes / 1024d / 1024 / 1024:0.0} ГБ";
-    public static string Mb(ulong bytes) => $"{bytes / 1024d / 1024:0} МБ";
+    public static string Gb(ulong bytes) =>
+        (bytes / 1024d / 1024 / 1024).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " GB";
+    public static string Mb(ulong bytes) =>
+        (bytes / 1024d / 1024).ToString("0", System.Globalization.CultureInfo.InvariantCulture) + " MB";
 }

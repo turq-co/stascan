@@ -4,8 +4,6 @@
 
 StaScan is a lightweight system tray utility for Windows 10 and 11. After a session of browsing, chatting and working, background processes, bloated memory caches and Windows housekeeping tasks often drag frame rates down until the next restart. StaScan takes a snapshot of your system right after you sign in. Later, one click closes everything started since then, flushes memory and quiets Windows background services so you can return to your game.
 
-> The user interface is currently in Russian. This README gives the original labels with English translations where it helps.
-
 ![Game prep](docs/screenshots/game-prep-light.png)
 
 ## Features
@@ -33,7 +31,7 @@ Each item has its own toggle in the main window and in the tray menu:
 - **For this gaming session.** The item is paused until you turn it back on. If you forget, StaScan restores it automatically after the next reboot.
 - **Permanently.** The item stays disabled until you restore it.
 - **Restore all.** StaScan remembers the original state of every item it changes and restores exactly that state.
-- **Changed outside StaScan.** Items disabled elsewhere are labelled *отключено в Windows* (disabled in Windows). Turning them on applies the Windows default.
+- **Changed outside StaScan.** Items disabled elsewhere are labelled *disabled in Windows*. Turning them on applies the Windows default.
 
 Microsoft Defender is intentionally never touched.
 
@@ -73,7 +71,7 @@ cd stascan
 ```
 
 1. Run `dist\StaScan.lnk` and accept the UAC prompt.
-2. Open **Настройки** (Settings) and enable **Запускать при входе в Windows** (start with Windows).
+2. Open **Settings** and enable **Start with Windows**.
 
 This registers a Task Scheduler task named `StaScan` that runs with highest privileges 60 seconds after sign-in. From then on there is no UAC prompt, and the snapshot is taken once your startup apps have settled. While the task exists, the shortcut also launches StaScan through it.
 
@@ -86,11 +84,11 @@ Smart App Control on Windows 11 blocks unsigned executables that have no reputat
 | Where | What it does |
 |---|---|
 | Double-click the tray icon | Opens the main window on Game prep |
-| **Подготовка к игре** (Game prep) | Review the list of new programs, choose extra actions, click **Подготовить к игре** (Prepare for gaming) |
-| **Фоновые службы** (Background services) | Toggle individual services. The **В подготовке** (include in prep) checkbox adds a service to the Game prep run, provided the option at the top of the section is enabled |
-| **USB-порты** (USB ports) | Replug a device and click **Обновить** (Refresh) to see the result |
-| **Настройки** (Settings) | Theme, snapshot, autostart, whitelist, log folder |
-| Tray menu → **Фоновые службы ▸** | Toggle any service in one click, disable permanently, or restore all |
+| **Game prep** | Review the list of new programs, choose extra actions, click **Prepare for gaming** |
+| **Background services** | Toggle individual services. The **Include in prep** checkbox adds a service to the Game prep run, provided the option at the top of the section is enabled |
+| **USB ports** | Replug a device and click **Refresh** to see the result |
+| **Settings** | Theme, snapshot, autostart, whitelist, log folder |
+| Tray menu → **Background services ▸** | Toggle any service in one click, disable permanently, or restore all |
 
 Settings, the snapshot and the log are stored in `%LOCALAPPDATA%\StaScan`.
 
@@ -108,7 +106,7 @@ StaScan never closes:
 ## Limitations
 
 - If you use a standard account and enter **another** administrator's credentials at the UAC prompt, StaScan runs as that administrator. Its settings and log then live in that profile, and the Xbox Game Bar option changes that user's settings, not yours.
-- The USB controller table covers common Intel and AMD platforms. An unknown controller is shown as *нет в базе* (not in database) and treated as chipset-attached.
+- The USB controller table covers common Intel and AMD platforms. An unknown controller is shown as *not in database* and treated as chipset-attached.
 - CS2 and some anti-cheat systems (for example FACEIT) may block changes to process affinity. StaScan reports a warning when this happens.
 
 ## Troubleshooting
@@ -117,9 +115,9 @@ The Game prep summary includes the **nonpaged pool** size. It is usually 300–8
 
 ## Uninstalling
 
-1. **Фоновые службы** (Background services) → **Вернуть всё как было** (Restore all).
-2. **Настройки** (Settings) → turn off **Запускать при входе в Windows** (start with Windows).
-3. Tray menu → **Выход** (Exit). Then delete the project folder and `%LOCALAPPDATA%\StaScan`.
+1. **Background services** → **Restore all**.
+2. **Settings** → turn off **Start with Windows**.
+3. Tray menu → **Exit**. Then delete the project folder and `%LOCALAPPDATA%\StaScan`.
 
 ## License
 

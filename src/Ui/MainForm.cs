@@ -2,7 +2,7 @@ namespace StaScan;
 
 enum Page { Prepare, Services, Usb, Settings }
 
-/// <summary>Общее для всех разделов окна: настройки, снимок, уведомления.</summary>
+/// <summary>Shared by all sections of the window: settings, snapshot, notifications.</summary>
 sealed class AppServices
 {
     public required Settings Settings { get; init; }
@@ -10,18 +10,18 @@ sealed class AppServices
     public required Action RetakeBaseline { get; init; }
     public required Action<string, ToolTipIcon> Notify { get; init; }
     public required Action Cs2SettingChanged { get; init; }
-    /// <summary>Сменить тему: окно пересоздаётся и открывается на указанном разделе.</summary>
+    /// <summary>Change the theme: the window is recreated and reopened on the given section.</summary>
     public required Action<ThemeMode, Page> ChangeTheme { get; init; }
 }
 
 interface IPage
 {
-    /// <summary>Вызывается при каждом открытии раздела.</summary>
+    /// <summary>Called every time the section is opened.</summary>
     void OnShown();
     bool IsBusy { get; }
 }
 
-/// <summary>Главное окно: разделы слева, содержимое справа.</summary>
+/// <summary>Main window: sections on the left, content on the right.</summary>
 sealed class MainForm : Form
 {
     readonly AppServices _app;
@@ -55,19 +55,19 @@ sealed class MainForm : Form
 
         var items = new (Page page, string text)[]
         {
-            (Page.Prepare, "Подготовка к игре"),
-            (Page.Services, "Фоновые службы"),
-            (Page.Usb, "USB-порты"),
-            (Page.Settings, "Настройки"),
+            (Page.Prepare, "Game prep"),
+            (Page.Services, "Background services"),
+            (Page.Usb, "USB ports"),
+            (Page.Settings, "Settings"),
         };
-        // Dock = Top складывает снизу вверх, поэтому добавляем в обратном порядке
+        // Dock = Top stacks from the bottom up, so add the items in reverse order
         foreach (var (page, text) in items.Reverse())
         {
             var b = new UiButton(text, ButtonKind.Nav) { Dock = DockStyle.Top };
             b.Click += (_, _) => ShowPage(page);
             _nav[page] = b;
             nav.Controls.Add(b);
-            nav.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 2, BackColor = P.Surface }); // зазор между пунктами
+            nav.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 2, BackColor = P.Surface }); // gap between items
         }
         nav.Controls.Add(brand);
 
@@ -80,7 +80,7 @@ sealed class MainForm : Form
             if (_pages.Values.OfType<IPage>().Any(p => p.IsBusy))
             {
                 e.Cancel = true;
-                MessageBox.Show(this, "Подождите, StaScan ещё выполняет действие.", "StaScan", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, "Please wait, StaScan is still working.", "StaScan", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         };
     }

@@ -33,7 +33,7 @@ static class Log
         }
         catch (Exception ex)
         {
-            // лог не должен ронять приложение, но причину сбоя сохраняем рядом с TEMP
+            // Logging must never crash the app, but keep the reason next to %TEMP%.
             try
             {
                 File.AppendAllText(Path.Combine(Path.GetTempPath(), "StaScan-log-error.txt"),
