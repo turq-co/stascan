@@ -25,6 +25,10 @@ sealed class Settings
 
     public ThemeMode Theme { get; set; } = ThemeMode.System;
 
+    /// <summary>Check GitHub Releases for a newer version once a day.</summary>
+    public bool CheckUpdates { get; set; } = true;
+    public DateTime LastUpdateCheck { get; set; }
+
     /// <summary>System-wide hotkeys (Ctrl+Alt+G / B / M).</summary>
     public bool Hotkeys { get; set; } = true;
 

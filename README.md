@@ -94,7 +94,7 @@ Download the latest **StaScan-Setup-x.y.z.exe** from [Releases](https://github.c
 - optionally starts StaScan when you sign in. This creates a Task Scheduler task named `StaScan` that runs with highest privileges 60 seconds after sign-in, so there is no UAC prompt and the snapshot is taken once your startup apps have settled;
 - makes the tray icon always visible on Windows 11 the first time StaScan starts (you can still hide it in **Settings → Personalization → Taskbar → Other system tray icons**).
 
-To upgrade, run a newer installer over the existing installation. A **portable** zip with a single `StaScan.exe` is also attached to each release.
+StaScan checks GitHub Releases for a newer version once a day (Settings → Updates; the request contains no personal data and can be turned off). **Download and install** fetches the installer, verifies its SHA-256 checksum against the release, and upgrades in place while keeping your options. You can also run a newer installer over the existing installation yourself. A **portable** zip with a single `StaScan.exe` is also attached to each release.
 
 The builds are not code-signed, so Windows SmartScreen may show a warning: click **More info → Run anyway**. If Smart App Control is turned on, Windows may block unsigned apps entirely; you will then see event ID 3077 in the `Microsoft-Windows-CodeIntegrity/Operational` log.
 

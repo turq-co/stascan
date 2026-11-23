@@ -22,6 +22,9 @@ sealed class AppServices
     /// <summary>Turn the global hotkeys on or off; returns the hotkeys another program already uses.</summary>
     public required Func<bool, List<string>> SetHotkeys { get; init; }
     public required Func<List<string>> HotkeyFailures { get; init; }
+    /// <summary>A newer release found by the background check, if any.</summary>
+    public required Func<UpdateInfo?> PendingUpdate { get; init; }
+    public required Action<UpdateInfo?> SetPendingUpdate { get; init; }
     /// <summary>The game that activated game mode and since when, or (null, null).</summary>
     public required Func<(string? game, DateTime? since)> GetActiveGame { get; init; }
     /// <summary>Raised (not on the UI thread) when a game starts or stops.</summary>

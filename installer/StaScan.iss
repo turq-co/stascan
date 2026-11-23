@@ -50,6 +50,8 @@ Name: "{autodesktop}\StaScan"; Filename: "{app}\StaScan.exe"; Tasks: desktopicon
 Filename: "{app}\StaScan.exe"; Parameters: "--enable-autostart"; Tasks: autostart; Flags: runhidden waituntilterminated; StatusMsg: "Setting up autostart..."
 Filename: "{app}\StaScan.exe"; Parameters: "--disable-autostart"; Tasks: not autostart; Flags: runhidden waituntilterminated
 Filename: "{app}\StaScan.exe"; Description: "Launch StaScan"; Flags: postinstall nowait skipifsilent shellexec
+; in-app updates run the installer with /SILENT /RELAUNCH=1 and expect StaScan to come back afterwards
+Filename: "{app}\StaScan.exe"; Flags: nowait shellexec; Check: ShouldRelaunch
 
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/f /im StaScan.exe"; Flags: runhidden waituntilterminated; RunOnceId: "StopStaScan"
@@ -57,6 +59,11 @@ Filename: "{sys}\taskkill.exe"; Parameters: "/f /im StaScan.exe"; Flags: runhidd
 Filename: "{app}\StaScan.exe"; Parameters: "--uninstall"; Flags: runhidden waituntilterminated; RunOnceId: "CleanupStaScan"
 
 [Code]
+function ShouldRelaunch: Boolean;
+begin
+  Result := ExpandConstant('{param:RELAUNCH|0}') = '1';
+end;
+
 // Stop a running StaScan before files are replaced during an upgrade.
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var

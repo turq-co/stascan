@@ -12,6 +12,9 @@ sealed class SettingsPage : UserControl, IPage
     readonly TextBox _whitelist;
     readonly Label _saved;
     readonly RadioButton _themeSystem, _themeLight, _themeDark;
+    readonly Label _updateStatus;
+    readonly CheckBox _autoUpdate;
+    readonly UiButton _checkNow, _install;
     bool _loading;
 
     public bool IsBusy => false;
@@ -38,6 +41,29 @@ sealed class SettingsPage : UserControl, IPage
         var themeLine = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0) };
         themeLine.Controls.AddRange(new Control[] { _themeSystem, _themeLight, _themeDark });
         body.Controls.Add(themeLine);
+
+        // Updates
+        body.Controls.Add(Theme.Section("Updates"));
+        _updateStatus = new Label { AutoSize = true, Margin = new Padding(0, 0, 0, 6) };
+        body.Controls.Add(_updateStatus);
+        _autoUpdate = Theme.Check("Check for updates automatically (once a day, from GitHub Releases)", false);
+        _autoUpdate.CheckedChanged += (_, _) =>
+        {
+            if (_loading) return;
+            _app.Settings.CheckUpdates = _autoUpdate.Checked;
+            _app.Settings.Save();
+        };
+        body.Controls.Add(_autoUpdate);
+        _checkNow = Theme.Secondary("Check now");
+        _checkNow.Click += async (_, _) => await CheckNowAsync();
+        _install = Theme.Primary("Download and install");
+        _install.Click += async (_, _) => await InstallAsync();
+        var notes = Theme.Secondary("Release notes");
+        notes.Click += (_, _) => OpenUrl(_app.PendingUpdate()?.PageUrl ?? Updater.ReleasesPage);
+        var updateLine = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0, 8, 0, 0) };
+        updateLine.Controls.AddRange(new Control[] { _checkNow, _install, notes });
+        foreach (Control c in updateLine.Controls) c.Margin = new Padding(0, 0, 8, 0);
+        body.Controls.Add(updateLine);
 
         // Snapshot
         body.Controls.Add(Theme.Section("Clean-state snapshot"));
@@ -159,12 +185,76 @@ sealed class SettingsPage : UserControl, IPage
         _autostart.Checked = Autostart.IsEnabled;
         _hotkeys.Checked = _app.Settings.Hotkeys;
         UpdateHotkeyNote(_app.Settings.Hotkeys ? _app.HotkeyFailures() : new());
+        _autoUpdate.Checked = _app.Settings.CheckUpdates;
+        ShowUpdateState();
         _whitelist.Text = string.Join(Environment.NewLine, _app.Settings.Whitelist);
         _saved.Text = "";
         _themeSystem.Checked = _app.Settings.Theme == ThemeMode.System;
         _themeLight.Checked = _app.Settings.Theme == ThemeMode.Light;
         _themeDark.Checked = _app.Settings.Theme == ThemeMode.Dark;
         _loading = false;
+    }
+
+    void ShowUpdateState(string? message = null)
+    {
+        var pending = _app.PendingUpdate();
+        _install.Visible = pending?.SetupUrl != null;
+        _updateStatus.ForeColor = pending != null ? Theme.P.Accent : Theme.P.Muted;
+        _updateStatus.Text = message ?? (pending != null
+            ? $"StaScan {pending.Version.ToString(3)} is available (you have {Updater.Current.ToString(3)})."
+            : $"You have StaScan {Updater.Current.ToString(3)}." +
+              (_app.Settings.LastUpdateCheck > DateTime.MinValue
+                  ? $" Last checked {_app.Settings.LastUpdateCheck.ToString("MMM d, HH:mm", System.Globalization.CultureInfo.InvariantCulture)}."
+                  : ""));
+    }
+
+    async Task CheckNowAsync()
+    {
+        _checkNow.Enabled = false;
+        ShowUpdateState("Checking GitHub…");
+        try
+        {
+            var update = await Updater.CheckAsync();
+            _app.Settings.LastUpdateCheck = DateTime.Now;
+            _app.Settings.Save();
+            _app.SetPendingUpdate(update);
+            ShowUpdateState(update == null ? $"You have the latest version ({Updater.Current.ToString(3)})." : null);
+        }
+        catch (Exception ex)
+        {
+            _updateStatus.ForeColor = Theme.P.Warn;
+            _updateStatus.Text = "Could not check for updates: " + ex.Message;
+        }
+        finally
+        {
+            _checkNow.Enabled = true;
+        }
+    }
+
+    async Task InstallAsync()
+    {
+        if (_app.PendingUpdate() is not { } update) return;
+        _install.Enabled = _checkNow.Enabled = false;
+        try
+        {
+            var progress = new Progress<int>(p => _updateStatus.Text = $"Downloading StaScan {update.Version.ToString(3)}… {p}%");
+            var setup = await Updater.DownloadAsync(update, progress);
+            _updateStatus.Text = "Installing. StaScan will restart in a moment…";
+            Updater.Install(setup);
+        }
+        catch (Exception ex)
+        {
+            _updateStatus.ForeColor = Theme.P.Warn;
+            _updateStatus.Text = "Update failed: " + ex.Message;
+            Log.Write($"Update failed: {ex}");
+            _install.Enabled = _checkNow.Enabled = true;
+        }
+    }
+
+    static void OpenUrl(string url)
+    {
+        try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
+        catch (Exception ex) { Log.Write($"Could not open {url}: {ex.Message}"); }
     }
 
     void UpdateHotkeyNote(List<string> failed) =>

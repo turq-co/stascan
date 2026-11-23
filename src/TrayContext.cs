@@ -14,6 +14,7 @@ sealed class TrayContext : ApplicationContext
     readonly GameWatcher _games;
     readonly MetricsHistory _metrics = new();
     readonly Hotkeys _hotkeys;
+    UpdateInfo? _pendingUpdate;
     readonly ToolStripMenuItem _gameModeItem;
     readonly AppServices _app;
     readonly ToolStripMenuItem _servicesMenu;
@@ -74,6 +75,8 @@ sealed class TrayContext : ApplicationContext
             GameModeSettingsChanged = () => _games.Update(),
             Metrics = _metrics,
             SetHotkeys = SetHotkeys,
+            PendingUpdate = () => _pendingUpdate,
+            SetPendingUpdate = u => _pendingUpdate = u,
             HotkeyFailures = () => _hotkeys.Failed.ToList(),
             GetActiveGame = () => (_games.ActiveGame, _games.ActiveSince),
             Settings = _settings,
@@ -102,8 +105,32 @@ sealed class TrayContext : ApplicationContext
         // Explorer registers the tray entry a moment after the icon appears, then we can promote it
         Task.Delay(TimeSpan.FromSeconds(10)).ContinueWith(_ => TrayIcon.PromoteOnce(_settings));
 
+        _tray.BalloonTipClicked += (_, _) => { if (_pendingUpdate != null) Open(Page.Settings); };
+        _ = CheckUpdatesInBackground();
+
         // right after startup, give the memory used during initialization back to the system
         TrimMemory();
+    }
+
+    /// <summary>Once a day, 30 seconds after start, look for a newer release on GitHub.</summary>
+    async Task CheckUpdatesInBackground()
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(30));
+            if (!_settings.CheckUpdates || DateTime.Now - _settings.LastUpdateCheck < TimeSpan.FromHours(20)) return;
+            var update = await Updater.CheckAsync();
+            _settings.LastUpdateCheck = DateTime.Now;
+            _settings.Save();
+            if (update == null) return;
+            _pendingUpdate = update;
+            Log.Write($"Update available: {update.Tag}");
+            Notify($"StaScan {update.Version.ToString(3)} is available. Click here to update.", ToolTipIcon.Info);
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Update check failed: {ex.Message}");
+        }
     }
 
     void OnHotkey(Hotkeys.Action action)
