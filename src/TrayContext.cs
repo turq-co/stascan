@@ -153,6 +153,9 @@ sealed class TrayContext : ApplicationContext
             case Hotkeys.Action.ToggleGameMode:
                 ToggleGameMode();
                 break;
+            case Hotkeys.Action.MeasureFps:
+                _ = MeasureForegroundFps();
+                break;
             case Hotkeys.Action.QuickBoost:
                 Notify(L.T("Quick boost: freeing RAM…"), ToolTipIcon.Info);
                 var options = new PrepOptions(new(), FreeMemory: true, RestartExplorer: false, DnsAndTemp: false,
@@ -163,6 +166,43 @@ sealed class TrayContext : ApplicationContext
                     _ui.Post(_ => Notify(L.T("Quick boost done.") + " " + r.Brief, r.Warn ? ToolTipIcon.Warning : ToolTipIcon.Info), null);
                 });
                 break;
+        }
+    }
+
+    bool _measuring;
+
+    /// <summary>Ctrl+Alt+F: measure the game in the foreground. Nothing is downloaded from a hotkey mid-game.</summary>
+    async Task MeasureForegroundFps()
+    {
+        if (_measuring) return;
+        if (!FpsMeter.IsInstalled)
+        {
+            Notify(L.T("PresentMon is not installed yet. Download it in the Game mode section."), ToolTipIcon.Warning);
+            return;
+        }
+        var process = FpsMeter.ForegroundProcess();
+        if (process == null || process.Equals("StaScan.exe", StringComparison.OrdinalIgnoreCase) ||
+            process.Equals("explorer.exe", StringComparison.OrdinalIgnoreCase))
+        {
+            Notify(L.T("Switch to the game window first, then press Ctrl+Alt+F."), ToolTipIcon.Info);
+            return;
+        }
+        _measuring = true;
+        try
+        {
+            Notify(L.F("Measuring FPS of {0} for {1} seconds…", process, FpsMeter.DefaultSeconds), ToolTipIcon.Info);
+            var result = await FpsMeter.MeasureAsync(process);
+            Notify(FpsMeter.Describe(result), ToolTipIcon.Info);
+            _app.RaiseFpsMeasured();
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"FPS measurement failed: {ex.Message}");
+            Notify(L.F("FPS measurement failed: {0}", ex.Message), ToolTipIcon.Warning);
+        }
+        finally
+        {
+            _measuring = false;
         }
     }
 

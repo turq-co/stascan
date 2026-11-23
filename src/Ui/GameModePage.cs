@@ -10,7 +10,11 @@ sealed class GameModePage : UserControl, IPage
     readonly CheckBox _enabled, _freeMemory, _pauseServices, _closeApps, _restore;
     readonly TextBox _games;
     readonly ComboBox _running;
-    readonly Label _state, _saved;
+    readonly Label _state, _saved, _fpsStatus;
+    readonly ComboBox _fpsTarget;
+    readonly ListView _fps;
+    readonly UiButton _measure, _install;
+    bool _measuring;
     bool _loading;
 
     public bool IsBusy => false;
@@ -93,12 +97,130 @@ sealed class GameModePage : UserControl, IPage
         saveLine.Controls.AddRange(new Control[] { save, _saved });
         body.Controls.Add(saveLine);
 
+        // FPS measurement
+        body.Controls.Add(Theme.Section(L.T("FPS measurement")));
+        body.Controls.Add(new Label
+        {
+            AutoSize = true,
+            MaximumSize = new Size(760, 0),
+            ForeColor = Theme.P.Muted,
+            Text = L.T("Press Ctrl+Alt+F while playing to measure the game for 20 seconds. Measure once before game prep and once after it to see whether it helps. Measuring from this window works too, but games often slow down when they are not in the foreground."),
+        });
+        _fpsTarget = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 300, Margin = new Padding(0, 8, 8, 0) };
+        _measure = Theme.Primary(L.F("Measure for {0} s", FpsMeter.DefaultSeconds));
+        _measure.Margin = new Padding(0, 6, 8, 0);
+        _measure.Click += async (_, _) => await MeasureAsync();
+        _install = Theme.Secondary(L.T("Download PresentMon"));
+        _install.Margin = new Padding(0, 6, 8, 0);
+        _install.Click += async (_, _) => await InstallPresentMonAsync();
+        var fpsLine = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0) };
+        fpsLine.Controls.AddRange(new Control[] { _fpsTarget, _measure, _install });
+        body.Controls.Add(fpsLine);
+        _fpsStatus = new Label { AutoSize = true, ForeColor = Theme.P.Muted, Margin = new Padding(0, 6, 0, 6) };
+        body.Controls.Add(_fpsStatus);
+        _fps = Theme.List();
+        _fps.Dock = DockStyle.None;
+        _fps.Size = new Size(760, 170);
+        _fps.Columns.Add(L.T("Time"), 130);
+        _fps.Columns.Add(L.T("Program"), 170);
+        _fps.Columns.Add(L.T("Average FPS"), 100, HorizontalAlignment.Right);
+        _fps.Columns.Add(L.T("1% low"), 90, HorizontalAlignment.Right);
+        _fps.Columns.Add(L.T("Change"), 90, HorizontalAlignment.Right);
+        _fps.Columns.Add(L.T("After prep"), 100);
+        body.Controls.Add(_fps);
+
         Controls.Add(body);
         Controls.Add(hint);
         Controls.Add(title);
 
         _app.GameModeChanged += OnStateChanged;
-        Disposed += (_, _) => _app.GameModeChanged -= OnStateChanged;
+        _app.FpsMeasured += OnFpsMeasured;
+        Disposed += (_, _) =>
+        {
+            _app.GameModeChanged -= OnStateChanged;
+            _app.FpsMeasured -= OnFpsMeasured;
+        };
+    }
+
+    void OnFpsMeasured()
+    {
+        if (IsDisposed || !IsHandleCreated) return;
+        BeginInvoke(FillFps);
+    }
+
+    void FillFps()
+    {
+        _install.Visible = !FpsMeter.IsInstalled;
+        _measure.Enabled = FpsMeter.IsInstalled && !_measuring;
+        if (!FpsMeter.IsInstalled)
+            _fpsStatus.Text = L.T("FPS is measured with Intel PresentMon (free, MIT licence, about 1 MB). It is downloaded from GitHub once and verified by checksum.");
+
+        var all = FpsMeter.Load();
+        _fps.BeginUpdate();
+        _fps.Items.Clear();
+        for (int i = all.Count - 1; i >= 0; i--)
+        {
+            var r = all[i];
+            var prev = all.Take(i).LastOrDefault(x => x.Process.Equals(r.Process, StringComparison.OrdinalIgnoreCase));
+            _fps.Items.Add(new ListViewItem(new[]
+            {
+                L.DayTime(r.At),
+                r.Process,
+                r.AvgFps.ToString("0", CultureInfo.InvariantCulture),
+                r.Low1Fps.ToString("0", CultureInfo.InvariantCulture),
+                prev != null ? FpsMeter.Change(prev.AvgFps, r.AvgFps) : "",
+                r.AfterPrep ? L.T("yes") : "",
+            }));
+        }
+        _fps.EndUpdate();
+    }
+
+    async Task InstallPresentMonAsync()
+    {
+        if (MessageBox.Show(FindForm(), L.T("Download Intel PresentMon 2.6.0 (about 1 MB) from github.com/GameTechDev/PresentMon? It is verified by checksum before use."),
+                "StaScan", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        _install.Enabled = false;
+        _fpsStatus.Text = L.T("Downloading PresentMon…");
+        try
+        {
+            await FpsMeter.InstallAsync();
+            _fpsStatus.Text = L.T("PresentMon is ready. Press Ctrl+Alt+F in a game, or pick a program and click Measure.");
+        }
+        catch (Exception ex)
+        {
+            _fpsStatus.ForeColor = Theme.P.Warn;
+            _fpsStatus.Text = L.F("Could not download PresentMon: {0}", ex.Message);
+            Log.Write($"PresentMon download failed: {ex}");
+        }
+        finally
+        {
+            _install.Enabled = true;
+            FillFps();
+        }
+    }
+
+    async Task MeasureAsync()
+    {
+        if (_fpsTarget.SelectedItem is not string process) return;
+        _measuring = true;
+        _measure.Enabled = false;
+        _fpsStatus.ForeColor = Theme.P.Muted;
+        _fpsStatus.Text = L.F("Measuring FPS of {0} for {1} seconds…", process, FpsMeter.DefaultSeconds);
+        try
+        {
+            var result = await FpsMeter.MeasureAsync(process);
+            _fpsStatus.Text = FpsMeter.Describe(result);
+        }
+        catch (Exception ex)
+        {
+            _fpsStatus.ForeColor = Theme.P.Warn;
+            _fpsStatus.Text = L.F("FPS measurement failed: {0}", ex.Message);
+        }
+        finally
+        {
+            _measuring = false;
+            FillFps();
+        }
     }
 
     public void OnShown()
@@ -110,6 +232,7 @@ sealed class GameModePage : UserControl, IPage
         _loading = false;
         FillRunning();
         UpdateState();
+        FillFps();
     }
 
     void OnStateChanged()
@@ -147,6 +270,12 @@ sealed class GameModePage : UserControl, IPage
             }
         }
         foreach (var n in names) _running.Items.Add(n);
+
+        // FPS targets: games from the list first, then programs with a window
+        var selected = _fpsTarget.SelectedItem as string;
+        _fpsTarget.Items.Clear();
+        foreach (var n in S.Games.Concat(names).Distinct(StringComparer.OrdinalIgnoreCase)) _fpsTarget.Items.Add(n);
+        if (_fpsTarget.Items.Count > 0) _fpsTarget.SelectedItem = selected != null && _fpsTarget.Items.Contains(selected) ? selected : _fpsTarget.Items[0];
         if (_running.Items.Count > 0) _running.SelectedIndex = 0;
     }
 

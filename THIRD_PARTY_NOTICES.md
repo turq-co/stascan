@@ -1,5 +1,9 @@
 # Third-party notices
 
+## Intel PresentMon (downloaded on request, not included)
+
+FPS measurement uses [PresentMon](https://github.com/GameTechDev/PresentMon) 2.6.0 by Intel Corporation, licensed under the MIT License. StaScan does not ship it: when you ask for FPS measurement, it downloads `PresentMon-2.6.0-x64.exe` from the official GitHub release and verifies its SHA-256 checksum before running it.
+
 ## cpu-direct-usb (USB Latency Analyzer V2)
 
 `src/UsbTopology.cs` ports the algorithm and the USB host controller table from

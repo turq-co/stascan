@@ -32,6 +32,9 @@ sealed class AppServices
     /// <summary>Raised (not on the UI thread) when a game starts or stops.</summary>
     public event Action? GameModeChanged;
     public void RaiseGameModeChanged() => GameModeChanged?.Invoke();
+    /// <summary>Raised after an FPS measurement taken with the hotkey.</summary>
+    public event Action? FpsMeasured;
+    public void RaiseFpsMeasured() => FpsMeasured?.Invoke();
 }
 
 interface IPage

@@ -82,6 +82,7 @@ static class GamePrep
         }
 
         if (brief.Length == 0) brief.Append(L.T("Done."));
+        FpsMeter.LastPrepAt = DateTime.Now;
         return new PrepResult(full.ToString().Trim(), brief.ToString().Trim(), warn, pausedIds);
     }
 }

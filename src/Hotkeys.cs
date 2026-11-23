@@ -7,16 +7,18 @@ namespace StaScan;
 ///   Ctrl+Alt+G  open Game prep
 ///   Ctrl+Alt+B  quick boost (free RAM, pause marked services; nothing is closed)
 ///   Ctrl+Alt+M  toggle game mode
+///   Ctrl+Alt+F  measure FPS of the foreground game (PresentMon)
 /// </summary>
 sealed class Hotkeys : NativeWindow, IDisposable
 {
-    public enum Action { OpenPrep = 1, QuickBoost = 2, ToggleGameMode = 3 }
+    public enum Action { OpenPrep = 1, QuickBoost = 2, ToggleGameMode = 3, MeasureFps = 4 }
 
     public static readonly (Action action, string keys, string description)[] All =
     {
         (Action.OpenPrep, "Ctrl+Alt+G", "open Game prep"),
         (Action.QuickBoost, "Ctrl+Alt+B", "quick boost: free RAM and pause marked services"),
         (Action.ToggleGameMode, "Ctrl+Alt+M", "turn game mode on or off"),
+        (Action.MeasureFps, "Ctrl+Alt+F", "measure FPS of the game in the foreground for 20 seconds"),
     };
 
     const int WM_HOTKEY = 0x0312;
