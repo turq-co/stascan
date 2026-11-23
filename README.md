@@ -44,6 +44,9 @@ Microsoft Defender is intentionally never touched.
 
 ![Background services](docs/screenshots/background-services-dark.png)
 
+### Startup apps
+See what starts with Windows and uncheck what you do not need. StaScan reads the `Run` registry keys (per user, all users, 32-bit) and both Startup folders. It disables items the same way Task Manager does, by marking them under `Explorer\StartupApproved`, so nothing is deleted and every item can be turned back on from StaScan or from Task Manager. Microsoft Store apps and programs started by scheduled tasks are not listed yet.
+
 ### Diagnostics
 Find out *why* the frame rate dropped instead of guessing:
 

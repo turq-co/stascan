@@ -1,6 +1,6 @@
 namespace StaScan;
 
-enum Page { Prepare, GameMode, Services, Diagnostics, Usb, Settings }
+enum Page { Prepare, GameMode, Services, Startup, Diagnostics, Usb, Settings }
 
 /// <summary>Shared by all sections of the window: settings, snapshot, notifications.</summary>
 sealed class AppServices
@@ -73,6 +73,7 @@ sealed class MainForm : Form
             (Page.Prepare, "Game prep"),
             (Page.GameMode, "Game mode"),
             (Page.Services, "Background services"),
+            (Page.Startup, "Startup apps"),
             (Page.Diagnostics, "Diagnostics"),
             (Page.Usb, "USB ports"),
             (Page.Settings, "Settings"),
@@ -113,6 +114,7 @@ sealed class MainForm : Form
                 Page.Prepare => new PreparePage(_app, () => ShowPage(Page.Usb)),
                 Page.GameMode => new GameModePage(_app),
                 Page.Services => new ServicesPage(_app),
+                Page.Startup => new StartupPage(),
                 Page.Diagnostics => new DiagnosticsPage(_app),
                 Page.Usb => new UsbPage(),
                 _ => new SettingsPage(_app),
