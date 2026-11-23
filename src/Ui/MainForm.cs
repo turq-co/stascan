@@ -1,6 +1,6 @@
 namespace StaScan;
 
-enum Page { Prepare, GameMode, Services, Usb, Settings }
+enum Page { Prepare, GameMode, Services, Diagnostics, Usb, Settings }
 
 /// <summary>Shared by all sections of the window: settings, snapshot, notifications.</summary>
 sealed class AppServices
@@ -17,6 +17,8 @@ sealed class AppServices
 
     /// <summary>Game mode settings were changed in the window.</summary>
     public required Action GameModeSettingsChanged { get; init; }
+    /// <summary>Memory history sampled in the background since StaScan started.</summary>
+    public required MetricsHistory Metrics { get; init; }
     /// <summary>The game that activated game mode and since when, or (null, null).</summary>
     public required Func<(string? game, DateTime? since)> GetActiveGame { get; init; }
     /// <summary>Raised (not on the UI thread) when a game starts or stops.</summary>
@@ -68,6 +70,7 @@ sealed class MainForm : Form
             (Page.Prepare, "Game prep"),
             (Page.GameMode, "Game mode"),
             (Page.Services, "Background services"),
+            (Page.Diagnostics, "Diagnostics"),
             (Page.Usb, "USB ports"),
             (Page.Settings, "Settings"),
         };
@@ -107,6 +110,7 @@ sealed class MainForm : Form
                 Page.Prepare => new PreparePage(_app, () => ShowPage(Page.Usb)),
                 Page.GameMode => new GameModePage(_app),
                 Page.Services => new ServicesPage(_app),
+                Page.Diagnostics => new DiagnosticsPage(_app),
                 Page.Usb => new UsbPage(),
                 _ => new SettingsPage(_app),
             };

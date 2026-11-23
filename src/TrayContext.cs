@@ -12,6 +12,7 @@ sealed class TrayContext : ApplicationContext
     readonly Settings _settings = Settings.Load();
     readonly AffinityWatcher _affinity;
     readonly GameWatcher _games;
+    readonly MetricsHistory _metrics = new();
     readonly ToolStripMenuItem _gameModeItem;
     readonly AppServices _app;
     readonly ToolStripMenuItem _servicesMenu;
@@ -43,6 +44,7 @@ sealed class TrayContext : ApplicationContext
         _menu.Items.Add(prepare);
         _menu.Items.Add(_gameModeItem);
         _menu.Items.Add(_servicesMenu);
+        _menu.Items.Add("Diagnostics…", null, (_, _) => Open(Page.Diagnostics));
         _menu.Items.Add("Mouse and keyboard USB ports…", null, (_, _) => Open(Page.Usb));
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add("Open StaScan", null, (_, _) => Open(Page.Prepare));
@@ -67,6 +69,7 @@ sealed class TrayContext : ApplicationContext
         _app = new AppServices
         {
             GameModeSettingsChanged = () => _games.Update(),
+            Metrics = _metrics,
             GetActiveGame = () => (_games.ActiveGame, _games.ActiveSince),
             Settings = _settings,
             GetBaseline = () => _baseline,
@@ -307,6 +310,7 @@ sealed class TrayContext : ApplicationContext
         _main?.Close();
         _affinity.Dispose();
         _games.Dispose();
+        _metrics.Dispose();
         _tray.Visible = false;
         _tray.Dispose();
         Log.Write("StaScan exited");

@@ -44,6 +44,13 @@ Microsoft Defender is intentionally never touched.
 
 ![Background services](docs/screenshots/background-services-dark.png)
 
+### Diagnostics
+Find out *why* the frame rate dropped instead of guessing:
+
+- **Memory trends.** Available RAM and the kernel nonpaged pool are sampled once a minute and charted for the last 24 hours.
+- **Driver leak finder.** Kernel pool usage per allocation tag (like `poolmon`) with growth since StaScan started. Select a tag and StaScan finds which loaded driver uses it. A warning appears when the nonpaged pool grows faster than 20 MB per hour.
+- **Video memory by process.** Dedicated GPU memory per process. Browsers, chat apps and animated wallpapers often hold hundreds of megabytes of VRAM while minimized.
+
 ### USB port check
 Shows how many chips (hubs and the chipset) sit between your mouse or keyboard and the CPU, and whether your motherboard has USB ports wired directly to the processor:
 

@@ -127,6 +127,16 @@ static class Native
         }
     }
 
+    public readonly record struct PerfInfo(ulong CommitBytes, ulong CommitLimitBytes, ulong PhysicalTotalBytes, ulong NonpagedBytes, ulong PagedBytes);
+
+    public static PerfInfo? GetPerf()
+    {
+        if (!GetPerformanceInfo(out var pi, Marshal.SizeOf<PERFORMANCE_INFORMATION>())) return null;
+        ulong page = (ulong)pi.PageSize;
+        return new PerfInfo((ulong)pi.CommitTotal * page, (ulong)pi.CommitLimit * page, (ulong)pi.PhysicalTotal * page,
+            (ulong)pi.KernelNonpaged * page, (ulong)pi.KernelPaged * page);
+    }
+
     public static ulong GetNonpagedPoolBytes()
     {
         if (!GetPerformanceInfo(out var pi, Marshal.SizeOf<PERFORMANCE_INFORMATION>())) return 0;
