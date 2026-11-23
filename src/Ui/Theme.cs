@@ -202,10 +202,29 @@ static class Theme
                 lv.ForeColor = P.Text;
                 DarkScrollbars(lv);
                 break;
+            case ComboBox combo:
+                // a drop-down list ignores BackColor unless it draws its own items
+                combo.FlatStyle = FlatStyle.Flat;
+                combo.BackColor = P.Input;
+                combo.ForeColor = P.Text;
+                combo.DrawMode = DrawMode.OwnerDrawFixed;
+                combo.ItemHeight = Math.Max(combo.ItemHeight, 20);
+                combo.DrawItem += (_, e) =>
+                {
+                    if (e.Index < 0) return;
+                    bool selected = (e.State & DrawItemState.Selected) != 0;
+                    using var bg = new SolidBrush(selected ? P.SurfaceHover : P.Input);
+                    e.Graphics.FillRectangle(bg, e.Bounds);
+                    TextRenderer.DrawText(e.Graphics, combo.GetItemText(combo.Items[e.Index]), combo.Font, e.Bounds, P.Text,
+                        TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+                };
+                DarkScrollbars(combo);
+                break;
             case TextBox tb:
                 tb.BackColor = P.Input;
                 tb.ForeColor = P.Text;
                 tb.BorderStyle = BorderStyle.FixedSingle;
+                if (tb.Multiline) DarkScrollbars(tb);
                 break;
             case LinkLabel ll:
                 ll.LinkColor = ll.ActiveLinkColor = ll.VisitedLinkColor = P.Accent;

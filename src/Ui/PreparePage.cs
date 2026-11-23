@@ -1,14 +1,11 @@
 using System.Diagnostics;
 using System.Globalization;
-using System.Text;
 
 namespace StaScan;
 
 /// <summary>"Game prep" section: programs started since the snapshot plus extra actions.</summary>
 sealed class PreparePage : UserControl, IPage
 {
-    const ulong NonpagedWarnBytes = 1536UL * 1024 * 1024; // 1.5 GB: above this a driver leak is likely
-
     readonly AppServices _app;
     readonly Label _header;
     readonly ListView _list;
@@ -171,90 +168,23 @@ sealed class PreparePage : UserControl, IPage
         Log.Write($"Game prep: close {selected.Count} programs ({string.Join(", ", selected.Select(g => g.ExeName))}); " +
                   $"RAM={mem}, explorer={explorer}, DNS/TEMP={dnsTemp}, background={background}");
 
-        (string full, string brief, bool warn) result;
+        PrepResult result;
         try
         {
-            result = await Task.Run(() => Prepare(selected, mem, explorer, dnsTemp, background ? backgroundIds : null, SetStatus));
+            var options = new PrepOptions(selected, mem, explorer, dnsTemp, background ? backgroundIds : null);
+            result = await Task.Run(() => GamePrep.Run(options, SetStatus));
         }
         catch (Exception ex)
         {
             Log.Write($"Game prep failed: {ex}");
-            result = ($"Error: {ex.Message}", "Game prep failed, see the log for details.", true);
+            result = new PrepResult($"Error: {ex.Message}", "Game prep failed, see the log for details.", true, new());
         }
 
         SetBusy(false);
-        _app.Notify(result.brief, result.warn ? ToolTipIcon.Warning : ToolTipIcon.Info);
+        _app.Notify(result.Brief, result.Warn ? ToolTipIcon.Warning : ToolTipIcon.Info);
         LoadCandidates(); // show anything that is still running (for example, access denied)
-        _status.ForeColor = result.warn ? Theme.P.Warn : Theme.P.Text;
-        _status.Text = result.full;
-    }
-
-    static (string full, string brief, bool warn) Prepare(List<ProcessGroup> groups, bool mem, bool explorer, bool dnsTemp,
-        List<string>? backgroundIds, Action<string> status)
-    {
-        var full = new StringBuilder();
-        var brief = new StringBuilder();
-        bool warn = false;
-
-        if (groups.Count > 0)
-        {
-            int closed = ProcessKiller.Close(groups, status);
-            full.AppendLine($"Processes closed: {closed}.");
-            brief.Append($"Processes closed: {closed}. ");
-        }
-
-        if (backgroundIds != null)
-        {
-            status("Pausing Windows background services…");
-            var (ok, errors) = BackgroundServices.Apply(backgroundIds, PauseMode.Temporary);
-            full.AppendLine($"Background services paused: {ok}" +
-                            (errors.Count > 0 ? $", failed: {string.Join("; ", errors)}" : "") +
-                            ". To restore them, use the Background services section or the tray menu.");
-            brief.Append($"Background services paused: {ok}. ");
-            if (errors.Count > 0) warn = true;
-        }
-
-        if (dnsTemp)
-        {
-            status("Flushing DNS and cleaning TEMP…");
-            bool dns = SystemTweaks.FlushDns();
-            var (files, bytes) = SystemTweaks.CleanTemp();
-            full.AppendLine($"DNS cache {(dns ? "flushed" : "not flushed")}, files deleted from TEMP: {files} ({Native.Mb(bytes)}).");
-        }
-
-        if (explorer)
-        {
-            status("Restarting File Explorer…");
-            bool ok = SystemTweaks.RestartExplorer();
-            full.AppendLine(ok ? "File Explorer restarted." : "Could not restart File Explorer (see the log).");
-            if (!ok) warn = true;
-        }
-
-        if (mem)
-        {
-            status("Freeing up RAM…");
-            var r = MemoryCleaner.Clean();
-            full.AppendLine($"Free RAM: {MemoryCleaner.Fmt(r.Before?.FreeBytes)} → {MemoryCleaner.Fmt(r.After?.FreeBytes)}, " +
-                            $"standby: {MemoryCleaner.Fmt(r.Before?.StandbyBytes)} → {MemoryCleaner.Fmt(r.After?.StandbyBytes)}.");
-            brief.Append($"Free RAM: {MemoryCleaner.Fmt(r.Before?.FreeBytes)} → {MemoryCleaner.Fmt(r.After?.FreeBytes)}. ");
-            if (r.Errors.Count > 0)
-            {
-                full.AppendLine("Memory cleanup errors: " + string.Join("; ", r.Errors));
-                warn = true;
-            }
-
-            full.Append($"Nonpaged pool: {Native.Mb(r.NonpagedPool)}.");
-            if (r.NonpagedPool > NonpagedWarnBytes)
-            {
-                const string leak = " That is high: a driver is probably leaking memory, and only a reboot will reclaim it.";
-                full.Append(leak);
-                brief.Append(leak);
-                warn = true;
-            }
-        }
-
-        if (brief.Length == 0) brief.Append("Done.");
-        return (full.ToString().Trim(), brief.ToString().Trim(), warn);
+        _status.ForeColor = result.Warn ? Theme.P.Warn : Theme.P.Text;
+        _status.Text = result.Full;
     }
 
     void SetStatus(string text)

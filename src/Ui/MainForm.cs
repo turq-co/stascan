@@ -1,6 +1,6 @@
 namespace StaScan;
 
-enum Page { Prepare, Services, Usb, Settings }
+enum Page { Prepare, GameMode, Services, Usb, Settings }
 
 /// <summary>Shared by all sections of the window: settings, snapshot, notifications.</summary>
 sealed class AppServices
@@ -14,6 +14,14 @@ sealed class AppServices
     public required Action Cs2SettingChanged { get; init; }
     /// <summary>Change the theme: the window is recreated and reopened on the given section.</summary>
     public required Action<ThemeMode, Page> ChangeTheme { get; init; }
+
+    /// <summary>Game mode settings were changed in the window.</summary>
+    public required Action GameModeSettingsChanged { get; init; }
+    /// <summary>The game that activated game mode and since when, or (null, null).</summary>
+    public required Func<(string? game, DateTime? since)> GetActiveGame { get; init; }
+    /// <summary>Raised (not on the UI thread) when a game starts or stops.</summary>
+    public event Action? GameModeChanged;
+    public void RaiseGameModeChanged() => GameModeChanged?.Invoke();
 }
 
 interface IPage
@@ -58,6 +66,7 @@ sealed class MainForm : Form
         var items = new (Page page, string text)[]
         {
             (Page.Prepare, "Game prep"),
+            (Page.GameMode, "Game mode"),
             (Page.Services, "Background services"),
             (Page.Usb, "USB ports"),
             (Page.Settings, "Settings"),
@@ -96,6 +105,7 @@ sealed class MainForm : Form
             control = page switch
             {
                 Page.Prepare => new PreparePage(_app, () => ShowPage(Page.Usb)),
+                Page.GameMode => new GameModePage(_app),
                 Page.Services => new ServicesPage(_app),
                 Page.Usb => new UsbPage(),
                 _ => new SettingsPage(_app),

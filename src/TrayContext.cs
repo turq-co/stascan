@@ -11,6 +11,8 @@ sealed class TrayContext : ApplicationContext
     readonly ContextMenuStrip _menu;
     readonly Settings _settings = Settings.Load();
     readonly AffinityWatcher _affinity;
+    readonly GameWatcher _games;
+    readonly ToolStripMenuItem _gameModeItem;
     readonly AppServices _app;
     readonly ToolStripMenuItem _servicesMenu;
     readonly SynchronizationContext _ui;
@@ -31,7 +33,15 @@ sealed class TrayContext : ApplicationContext
         _servicesMenu.DropDownItems.Add("…"); // placeholder so the submenu arrow is shown
         _servicesMenu.DropDownOpening += (_, _) => BuildServicesMenu();
 
+        _gameModeItem = new ToolStripMenuItem("Game mode", null, (_, _) => ToggleGameMode());
+        _menu.Opening += (_, _) =>
+        {
+            _gameModeItem.Checked = _settings.GameMode;
+            _gameModeItem.Text = _games?.ActiveGame is { } g ? $"Game mode (active: {g})" : "Game mode";
+        };
+
         _menu.Items.Add(prepare);
+        _menu.Items.Add(_gameModeItem);
         _menu.Items.Add(_servicesMenu);
         _menu.Items.Add("Mouse and keyboard USB ports…", null, (_, _) => Open(Page.Usb));
         _menu.Items.Add(new ToolStripSeparator());
@@ -52,9 +62,12 @@ sealed class TrayContext : ApplicationContext
         // notifications from the timer do not arrive on the UI thread
         _ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         _affinity = new AffinityWatcher(() => _settings.Cs2SkipCpu0, (t, i) => _ui.Post(_ => Notify(t, i), null));
+        _games = new GameWatcher(_settings, () => _baseline, (t, i) => _ui.Post(_ => Notify(t, i), null));
 
         _app = new AppServices
         {
+            GameModeSettingsChanged = () => _games.Update(),
+            GetActiveGame = () => (_games.ActiveGame, _games.ActiveSince),
             Settings = _settings,
             GetBaseline = () => _baseline,
             RetakeBaseline = RetakeBaseline,
@@ -64,6 +77,7 @@ sealed class TrayContext : ApplicationContext
             ChangeTheme = ChangeTheme,
         };
 
+        _games.StateChanged += _app.RaiseGameModeChanged;
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
 
         Autostart.RepairIfBroken();
@@ -80,6 +94,18 @@ sealed class TrayContext : ApplicationContext
 
         // right after startup, give the memory used during initialization back to the system
         TrimMemory();
+    }
+
+    void ToggleGameMode()
+    {
+        _settings.GameMode = !_settings.GameMode;
+        _settings.Save();
+        _games.Update();
+        _app.RaiseGameModeChanged();
+        Log.Write($"Game mode {(_settings.GameMode ? "on" : "off")} (tray)");
+        Notify(_settings.GameMode
+            ? $"Game mode on. Waiting for: {string.Join(", ", _settings.Games)}."
+            : "Game mode off.", ToolTipIcon.Info);
     }
 
     void Open(Page page)
@@ -280,6 +306,7 @@ sealed class TrayContext : ApplicationContext
         SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
         _main?.Close();
         _affinity.Dispose();
+        _games.Dispose();
         _tray.Visible = false;
         _tray.Dispose();
         Log.Write("StaScan exited");

@@ -17,6 +17,13 @@ StaScan is a lightweight system tray utility for Windows 10 and 11. After a sess
 - **CS2 affinity.** Optionally removes CPU 0 from the affinity mask of `cs2.exe`. This also applies when the game is launched later.
 - **Driver leak hint.** The summary shows the size of the kernel nonpaged pool, so you can tell when only a reboot will help (see [Troubleshooting](#troubleshooting)).
 
+### Game mode
+Turn it on in the **Game mode** section or from the tray menu, and StaScan does the prep for you:
+
+- **Watches for games.** It checks every few seconds for any executable from your game list (`cs2.exe` by default). You can add a running program in one click.
+- **Prepares automatically.** When a game starts, StaScan frees RAM and pauses the background services marked *Include in prep*. Closing other programs is optional and off by default, because it happens without confirmation.
+- **Cleans up after you.** When the last game exits, everything game mode paused is restored.
+
 ### Background services
 Pause or disable Windows components that compete with your game for CPU, disk and network:
 

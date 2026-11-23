@@ -25,6 +25,18 @@ sealed class Settings
 
     public ThemeMode Theme { get; set; } = ThemeMode.System;
 
+    // ── Game mode ──
+    /// <summary>Run game prep automatically when a game from <see cref="Games"/> starts.</summary>
+    public bool GameMode { get; set; }
+    /// <summary>Executable names that count as games.</summary>
+    public List<string> Games { get; set; } = new() { "cs2.exe" };
+    public bool GameModeFreeMemory { get; set; } = true;
+    public bool GameModePauseServices { get; set; } = true;
+    /// <summary>Also close programs started since the snapshot (off by default: no confirmation is shown).</summary>
+    public bool GameModeCloseApps { get; set; }
+    /// <summary>Restore the services game mode paused once the last game exits.</summary>
+    public bool GameModeRestoreOnExit { get; set; } = true;
+
     /// <summary>Executable paths whose tray icon was already made always visible (done once per location).</summary>
     public List<string> TrayPromotedFor { get; set; } = new();
 
