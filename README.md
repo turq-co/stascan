@@ -117,14 +117,7 @@ This produces `dist\StaScan.exe` and, when Inno Setup is installed, `dist\StaSca
 
 ### Publishing a release
 
-Releases are built by GitHub Actions ([`.github/workflows/release.yml`](.github/workflows/release.yml)). Bump `<Version>` in `StaScan.csproj`, then push a matching tag:
-
-```powershell
-git tag v1.1.0
-git push origin v1.1.0
-```
-
-The workflow builds the app and the installer and attaches both to a new GitHub release.
+Releases are built by GitHub Actions: bump `<Version>` in `StaScan.csproj` and push a matching `v*` tag. Every push and pull request is also built and checked for missing translations. See [docs/PUBLISHING.md](docs/PUBLISHING.md) for releases, winget packaging and code signing.
 
 ## Usage
 
