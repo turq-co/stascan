@@ -14,14 +14,14 @@ StaScan is a lightweight system tray utility for Windows 10 and 11. After a sess
 - **Memory cleanup.** Empties process working sets, flushes the modified page list and the file system cache, and purges the standby list (the same operations as RAMMap's *Empty* commands or ISLC).
 - **Explorer restart.** Restarts `explorer.exe` and the taskbar without elevated rights.
 - **DNS and temp cleanup.** Flushes the DNS resolver cache and deletes files older than 24 hours from `%TEMP%`.
-- **CS2 affinity.** Optionally removes CPU 0 from the affinity mask of `cs2.exe`. This also applies when the game is launched later.
+- **CS2 affinity.** Optionally removes CPU 0 from the affinity mask of `cs2.exe`, also when the game is launched later. The mask is set once per game process; if the game or an anti-cheat resets it, StaScan leaves it alone instead of moving the game's threads around.
 - **Driver leak hint.** The summary shows the size of the kernel nonpaged pool, so you can tell when only a reboot will help (see [Troubleshooting](#troubleshooting)).
 
 ### Game mode
 Turn it on in the **Game mode** section or from the tray menu, and StaScan does the prep for you:
 
 - **Watches for games.** It checks every few seconds for any executable from your game list (`cs2.exe` by default). You can add a running program in one click.
-- **Prepares automatically.** When a game starts, StaScan frees RAM and pauses the background services marked *Include in prep*. Closing other programs is optional and off by default, because it happens without confirmation.
+- **Prepares automatically.** When a game starts, StaScan pauses the background services marked *Include in prep* and frees unused RAM. Because the game is already running, only the low-priority standby list is purged: the game's own memory and the file cache it loads assets from are never evicted, which would cause hitches. Closing other programs is optional and off by default, because it happens without confirmation.
 - **Cleans up after you.** When the last game exits, everything game mode paused is restored.
 
 ![Game mode](docs/screenshots/game-mode-dark.png)
@@ -56,7 +56,7 @@ See what starts with Windows and uncheck what you do not need. StaScan reads the
 Find out *why* the frame rate dropped instead of guessing:
 
 - **Memory trends.** Available RAM and the kernel nonpaged pool are sampled once a minute and charted for the last 24 hours.
-- **Driver leak finder.** Kernel pool usage per allocation tag (like `poolmon`) with growth since StaScan started. Select a tag and StaScan finds which loaded driver uses it. A warning appears when the nonpaged pool grows faster than 20 MB per hour.
+- **Driver leak finder.** Kernel pool usage per allocation tag (like `poolmon`) with growth since StaScan started. Select a tag and StaScan finds which loaded driver uses it. A warning appears when the nonpaged pool grows faster than 20 MB per hour. Live values refresh only while the StaScan window is in front, so the counters are never polled during a game.
 - **Video memory by process.** Dedicated GPU memory per process. Browsers, chat apps and animated wallpapers often hold hundreds of megabytes of VRAM while minimized.
 
 ### USB port check
@@ -78,7 +78,7 @@ Shows how many chips (hubs and the chipset) sit between your mouse or keyboard a
   | Keys | Action |
   |---|---|
   | `Ctrl+Alt+G` | Open Game prep |
-  | `Ctrl+Alt+B` | Quick boost: free RAM and pause marked services, nothing is closed |
+  | `Ctrl+Alt+B` | Quick boost: free unused RAM (gentle, safe in-game) and pause marked services; nothing is closed |
   | `Ctrl+Alt+M` | Turn game mode on or off |
   | `Ctrl+Alt+F` | Measure FPS of the game in the foreground for 20 seconds |
 - **Small footprint.** About 20 MB of RAM and near-zero CPU while idle in the tray. Memory is returned to the system when the window is closed.

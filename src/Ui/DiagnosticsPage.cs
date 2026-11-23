@@ -79,10 +79,15 @@ sealed class DiagnosticsPage : UserControl, IPage
         Controls.Add(hint);
         Controls.Add(title);
 
-        _timer.Tick += async (_, _) => { if (Visible) await RefreshAsync(); };
+        // Poll only while the StaScan window is in front: querying GPU counters in the background (for example while
+        // the window is minimized during a game) can cause frame hitches.
+        _timer.Tick += async (_, _) => { if (IsInFront()) await RefreshAsync(); };
         VisibleChanged += (_, _) => _timer.Enabled = Visible;
         Disposed += (_, _) => _timer.Dispose();
     }
+
+    bool IsInFront() =>
+        Visible && FindForm() is { } form && form.WindowState != FormWindowState.Minimized && Form.ActiveForm == form;
 
     public void OnShown()
     {

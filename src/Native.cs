@@ -15,6 +15,7 @@ static class Native
     public const int MemoryEmptyWorkingSets = 2;
     public const int MemoryFlushModifiedList = 3;
     public const int MemoryPurgeStandbyList = 4;
+    public const int MemoryPurgeLowPriorityStandbyList = 5;
 
     [DllImport("kernel32.dll", SetLastError = true)]
     static extern IntPtr OpenProcess(uint access, bool inherit, int pid);

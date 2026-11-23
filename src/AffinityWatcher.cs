@@ -4,8 +4,7 @@ namespace StaScan;
 
 /// <summary>
 /// Removes CPU 0 from the affinity mask of cs2.exe. CS2 is usually launched after game prep,
-/// so while the option is on StaScan checks cs2.exe every 3 seconds and re-applies the mask
-/// if the game or an anti-cheat resets it.
+/// so while the option is on StaScan checks every 3 seconds for a new cs2.exe and sets the mask once per process.
 /// </summary>
 sealed class AffinityWatcher : IDisposable
 {
@@ -55,20 +54,17 @@ sealed class AffinityWatcher : IDisposable
                 using (p)
                 {
                     alive.Add(p.Id);
-                    if (_failed.Contains(p.Id)) continue;
+                    // Each process gets the mask exactly once. If the game or an anti-cheat resets it later,
+                    // StaScan leaves it alone: fighting over the mask moves the game's threads between cores
+                    // every few seconds, which itself causes hitches.
+                    if (_failed.Contains(p.Id) || _applied.Contains(p.Id)) continue;
                     try
                     {
+                        _applied.Add(p.Id);
                         if ((p.ProcessorAffinity.ToInt64() & 1) == 0) continue; // CPU 0 already excluded
                         p.ProcessorAffinity = TargetMask();
-                        if (_applied.Add(p.Id))
-                        {
-                            Log.Write($"cs2.exe (PID {p.Id}): CPU 0 excluded, mask 0x{TargetMask().ToInt64():X}");
-                            _notify(L.T("CS2: CPU 0 is now excluded for the game."), ToolTipIcon.Info);
-                        }
-                        else
-                        {
-                            Log.Write($"cs2.exe (PID {p.Id}): the mask was reset, applied it again");
-                        }
+                        Log.Write($"cs2.exe (PID {p.Id}): CPU 0 excluded, mask 0x{TargetMask().ToInt64():X}");
+                        _notify(L.T("CS2: CPU 0 is now excluded for the game."), ToolTipIcon.Info);
                     }
                     catch (Exception ex)
                     {

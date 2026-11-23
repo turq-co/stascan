@@ -89,7 +89,7 @@
   "Flushing DNS and cleaning TEMP…": "Сбрасываю DNS и чищу TEMP…",
   "Free RAM: {0} → {1}, standby: {2} → {3}.": "Свободная ОЗУ: {0} → {1}, standby: {2} → {3}.",
   "Free RAM: {0} → {1}.": "Свободная ОЗУ: {0} → {1}.",
-  "Free up RAM": "Освободить ОЗУ",
+  "Free up unused RAM (low-priority cache only, the game's own memory is left alone)": "Освободить неиспользуемую ОЗУ (только кэш с низким приоритетом, память самой игры не трогается)",
   "Free up RAM (working sets, standby list, file cache)": "Очистить ОЗУ (рабочие наборы, standby list, кэш файлов)",
   "Freeing up RAM…": "Освобождаю ОЗУ…",
   "Game mode": "Игровой режим",

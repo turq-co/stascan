@@ -159,7 +159,8 @@ sealed class TrayContext : ApplicationContext
             case Hotkeys.Action.QuickBoost:
                 Notify(L.T("Quick boost: freeing RAM…"), ToolTipIcon.Info);
                 var options = new PrepOptions(new(), FreeMemory: true, RestartExplorer: false, DnsAndTemp: false,
-                    BackgroundIds: _settings.PauseBackground ? _settings.BackgroundItemIds.ToList() : null);
+                    BackgroundIds: _settings.PauseBackground ? _settings.BackgroundItemIds.ToList() : null,
+                    GentleMemory: true); // the hotkey is meant for use in-game
                 Task.Run(() =>
                 {
                     var r = GamePrep.Run(options, _ => { });

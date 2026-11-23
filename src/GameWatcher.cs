@@ -97,7 +97,8 @@ sealed class GameWatcher : IDisposable
             FreeMemory: _settings.GameModeFreeMemory,
             RestartExplorer: false, // restarting the shell while a game launches is too disruptive
             DnsAndTemp: false,
-            BackgroundIds: _settings.GameModePauseServices ? _settings.BackgroundItemIds.ToList() : null);
+            BackgroundIds: _settings.GameModePauseServices ? _settings.BackgroundItemIds.ToList() : null,
+            GentleMemory: true); // the game is already running: never evict its working set or file cache
 
         var result = GamePrep.Run(options, _ => { });
         lock (_pausedByGameMode) _pausedByGameMode.AddRange(result.PausedIds);

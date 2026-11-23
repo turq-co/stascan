@@ -8,7 +8,8 @@ sealed record PrepOptions(
     bool FreeMemory,
     bool RestartExplorer,
     bool DnsAndTemp,
-    List<string>? BackgroundIds);
+    List<string>? BackgroundIds,
+    bool GentleMemory = false);
 
 /// <summary>Outcome of a game prep run. <see cref="PausedIds"/> lists background items this run paused.</summary>
 sealed record PrepResult(string Full, string Brief, bool Warn, List<string> PausedIds);
@@ -62,7 +63,7 @@ static class GamePrep
         if (o.FreeMemory)
         {
             status(L.T("Freeing up RAM…"));
-            var r = MemoryCleaner.Clean();
+            var r = MemoryCleaner.Clean(o.GentleMemory);
             full.AppendLine(L.F("Free RAM: {0} → {1}, standby: {2} → {3}.", MemoryCleaner.Fmt(r.Before?.FreeBytes), MemoryCleaner.Fmt(r.After?.FreeBytes), MemoryCleaner.Fmt(r.Before?.StandbyBytes), MemoryCleaner.Fmt(r.After?.StandbyBytes)));
             brief.Append(L.F("Free RAM: {0} → {1}.", MemoryCleaner.Fmt(r.Before?.FreeBytes), MemoryCleaner.Fmt(r.After?.FreeBytes)) + " ");
             if (r.Errors.Count > 0)

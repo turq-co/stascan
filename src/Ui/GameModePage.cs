@@ -45,7 +45,7 @@ sealed class GameModePage : UserControl, IPage
         body.Controls.Add(_state);
 
         body.Controls.Add(Theme.Section(L.T("When a game starts")));
-        _freeMemory = Theme.Check(L.T("Free up RAM"), S.GameModeFreeMemory);
+        _freeMemory = Theme.Check(L.T("Free up unused RAM (low-priority cache only, the game's own memory is left alone)"), S.GameModeFreeMemory);
         _pauseServices = Theme.Check(L.T("Pause background services marked \"Include in prep\""), S.GameModePauseServices);
         _closeApps = Theme.Check(L.T("Close programs started since the snapshot (no confirmation, the game itself is kept)"), S.GameModeCloseApps);
         _restore = Theme.Check(L.T("Restore paused services when the last game exits"), S.GameModeRestoreOnExit);
