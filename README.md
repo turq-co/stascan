@@ -24,6 +24,8 @@ Turn it on in the **Game mode** section or from the tray menu, and StaScan does 
 - **Prepares automatically.** When a game starts, StaScan frees RAM and pauses the background services marked *Include in prep*. Closing other programs is optional and off by default, because it happens without confirmation.
 - **Cleans up after you.** When the last game exits, everything game mode paused is restored.
 
+![Game mode](docs/screenshots/game-mode-dark.png)
+
 ### FPS measurement
 Check whether game prep actually helps. Press `Ctrl+Alt+F` while playing and StaScan records the game in the foreground for 20 seconds, then shows the average FPS and 1% low, compared with the previous measurement. Measurements are listed in the **Game mode** section, marked when game prep ran in between. FPS is captured with [Intel PresentMon](https://github.com/GameTechDev/PresentMon) (MIT), which StaScan downloads once on request (about 1 MB) and verifies by SHA-256.
 
