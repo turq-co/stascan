@@ -19,6 +19,9 @@ sealed class AppServices
     public required Action GameModeSettingsChanged { get; init; }
     /// <summary>Memory history sampled in the background since StaScan started.</summary>
     public required MetricsHistory Metrics { get; init; }
+    /// <summary>Turn the global hotkeys on or off; returns the hotkeys another program already uses.</summary>
+    public required Func<bool, List<string>> SetHotkeys { get; init; }
+    public required Func<List<string>> HotkeyFailures { get; init; }
     /// <summary>The game that activated game mode and since when, or (null, null).</summary>
     public required Func<(string? game, DateTime? since)> GetActiveGame { get; init; }
     /// <summary>Raised (not on the UI thread) when a game starts or stops.</summary>

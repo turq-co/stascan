@@ -13,6 +13,7 @@ sealed class TrayContext : ApplicationContext
     readonly AffinityWatcher _affinity;
     readonly GameWatcher _games;
     readonly MetricsHistory _metrics = new();
+    readonly Hotkeys _hotkeys;
     readonly ToolStripMenuItem _gameModeItem;
     readonly AppServices _app;
     readonly ToolStripMenuItem _servicesMenu;
@@ -66,10 +67,14 @@ sealed class TrayContext : ApplicationContext
         _affinity = new AffinityWatcher(() => _settings.Cs2SkipCpu0, (t, i) => _ui.Post(_ => Notify(t, i), null));
         _games = new GameWatcher(_settings, () => _baseline, (t, i) => _ui.Post(_ => Notify(t, i), null));
 
+        _hotkeys = new Hotkeys(OnHotkey);
+
         _app = new AppServices
         {
             GameModeSettingsChanged = () => _games.Update(),
             Metrics = _metrics,
+            SetHotkeys = SetHotkeys,
+            HotkeyFailures = () => _hotkeys.Failed.ToList(),
             GetActiveGame = () => (_games.ActiveGame, _games.ActiveSince),
             Settings = _settings,
             GetBaseline = () => _baseline,
@@ -82,6 +87,8 @@ sealed class TrayContext : ApplicationContext
 
         _games.StateChanged += _app.RaiseGameModeChanged;
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+
+        if (_settings.Hotkeys) _hotkeys.Register();
 
         Autostart.RepairIfBroken();
         _ = AutoRestoreAfterReboot();
@@ -97,6 +104,39 @@ sealed class TrayContext : ApplicationContext
 
         // right after startup, give the memory used during initialization back to the system
         TrimMemory();
+    }
+
+    void OnHotkey(Hotkeys.Action action)
+    {
+        Log.Write($"Hotkey: {action}");
+        switch (action)
+        {
+            case Hotkeys.Action.OpenPrep:
+                Open(Page.Prepare);
+                break;
+            case Hotkeys.Action.ToggleGameMode:
+                ToggleGameMode();
+                break;
+            case Hotkeys.Action.QuickBoost:
+                Notify("Quick boost: freeing RAM…", ToolTipIcon.Info);
+                var options = new PrepOptions(new(), FreeMemory: true, RestartExplorer: false, DnsAndTemp: false,
+                    BackgroundIds: _settings.PauseBackground ? _settings.BackgroundItemIds.ToList() : null);
+                Task.Run(() =>
+                {
+                    var r = GamePrep.Run(options, _ => { });
+                    _ui.Post(_ => Notify("Quick boost done. " + r.Brief, r.Warn ? ToolTipIcon.Warning : ToolTipIcon.Info), null);
+                });
+                break;
+        }
+    }
+
+    /// <summary>Turns the hotkeys on or off; returns the hotkeys that could not be registered.</summary>
+    List<string> SetHotkeys(bool on)
+    {
+        _settings.Hotkeys = on;
+        _settings.Save();
+        if (on) _hotkeys.Register(); else _hotkeys.Unregister();
+        return _hotkeys.Failed.ToList();
     }
 
     void ToggleGameMode()
@@ -311,6 +351,7 @@ sealed class TrayContext : ApplicationContext
         _affinity.Dispose();
         _games.Dispose();
         _metrics.Dispose();
+        _hotkeys.Dispose();
         _tray.Visible = false;
         _tray.Dispose();
         Log.Write("StaScan exited");

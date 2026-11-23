@@ -64,6 +64,13 @@ Shows how many chips (hubs and the chipset) sit between your mouse or keyboard a
 - A single main window with four sections: Game prep, Background services, USB ports and Settings.
 - **Themes.** Light and dark themes, or follow the Windows app theme automatically.
 - **Tray menu.** Quick access to every action, including a per-service toggle submenu.
+- **Global hotkeys** (can be turned off in Settings):
+
+  | Keys | Action |
+  |---|---|
+  | `Ctrl+Alt+G` | Open Game prep |
+  | `Ctrl+Alt+B` | Quick boost: free RAM and pause marked services, nothing is closed |
+  | `Ctrl+Alt+M` | Turn game mode on or off |
 - **Small footprint.** About 20 MB of RAM and near-zero CPU while idle in the tray. Memory is returned to the system when the window is closed.
 
 | Settings | Tray submenu |

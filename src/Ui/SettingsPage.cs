@@ -7,7 +7,8 @@ sealed class SettingsPage : UserControl, IPage
 {
     readonly AppServices _app;
     readonly Label _snapshot;
-    readonly CheckBox _autostart, _pinned;
+    readonly CheckBox _autostart, _pinned, _hotkeys;
+    readonly Label _hotkeyNote;
     readonly TextBox _whitelist;
     readonly Label _saved;
     readonly RadioButton _themeSystem, _themeLight, _themeDark;
@@ -71,6 +72,26 @@ sealed class SettingsPage : UserControl, IPage
             }
         };
         body.Controls.Add(_autostart);
+
+        // Hotkeys
+        body.Controls.Add(Theme.Section("Hotkeys"));
+        _hotkeys = Theme.Check("Enable global hotkeys", false);
+        _hotkeys.CheckedChanged += (_, _) =>
+        {
+            if (_loading) return;
+            var failed = _app.SetHotkeys(_hotkeys.Checked);
+            UpdateHotkeyNote(failed);
+        };
+        body.Controls.Add(_hotkeys);
+        body.Controls.Add(new Label
+        {
+            AutoSize = true,
+            ForeColor = Theme.P.Muted,
+            Margin = new Padding(20, 0, 0, 0),
+            Text = string.Join("\n", Hotkeys.All.Select(h => $"{h.keys}   {h.description}")),
+        });
+        _hotkeyNote = new Label { AutoSize = true, ForeColor = Theme.P.Warn, Margin = new Padding(20, 4, 0, 0) };
+        body.Controls.Add(_hotkeyNote);
 
         // Whitelist
         body.Controls.Add(Theme.Section("Whitelist"));
@@ -136,6 +157,8 @@ sealed class SettingsPage : UserControl, IPage
                              : "Not pinned: a new snapshot is taken after every reboot, one minute after you sign in.");
         _pinned.Checked = b.Pinned;
         _autostart.Checked = Autostart.IsEnabled;
+        _hotkeys.Checked = _app.Settings.Hotkeys;
+        UpdateHotkeyNote(_app.Settings.Hotkeys ? _app.HotkeyFailures() : new());
         _whitelist.Text = string.Join(Environment.NewLine, _app.Settings.Whitelist);
         _saved.Text = "";
         _themeSystem.Checked = _app.Settings.Theme == ThemeMode.System;
@@ -143,6 +166,9 @@ sealed class SettingsPage : UserControl, IPage
         _themeDark.Checked = _app.Settings.Theme == ThemeMode.Dark;
         _loading = false;
     }
+
+    void UpdateHotkeyNote(List<string> failed) =>
+        _hotkeyNote.Text = failed.Count == 0 ? "" : $"! Already used by another program: {string.Join(", ", failed)}";
 
     void SaveWhitelist()
     {

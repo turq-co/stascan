@@ -25,6 +25,9 @@ sealed class Settings
 
     public ThemeMode Theme { get; set; } = ThemeMode.System;
 
+    /// <summary>System-wide hotkeys (Ctrl+Alt+G / B / M).</summary>
+    public bool Hotkeys { get; set; } = true;
+
     // ── Game mode ──
     /// <summary>Run game prep automatically when a game from <see cref="Games"/> starts.</summary>
     public bool GameMode { get; set; }
