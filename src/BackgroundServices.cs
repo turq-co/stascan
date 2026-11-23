@@ -87,17 +87,17 @@ sealed class ServiceItem : BgItem
 
     static string StartText(int s) => s switch
     {
-        0 or 1 => "boot",
-        2 => "automatic",
-        3 => "manual",
-        4 => "disabled",
+        0 or 1 => L.T("boot"),
+        2 => L.T("automatic"),
+        3 => L.T("manual"),
+        4 => L.T("disabled"),
         _ => "?",
     };
 
     T WithService<T>(uint access, Func<IntPtr, T> action)
     {
         IntPtr scm = OpenSCManagerW(null, null, SC_MANAGER_CONNECT);
-        if (scm == IntPtr.Zero) throw new InvalidOperationException($"cannot access the Service Control Manager ({Marshal.GetLastWin32Error()})");
+        if (scm == IntPtr.Zero) throw new InvalidOperationException(L.F("cannot access the Service Control Manager ({0})", Marshal.GetLastWin32Error()));
         try
         {
             IntPtr svc = OpenServiceW(scm, ServiceName, access);
@@ -125,7 +125,7 @@ sealed class ServiceItem : BgItem
     }
 
     public override string Describe() =>
-        $"{(IsRunning() ? "running" : "stopped")} · {StartText(StartType())}";
+        $"{(IsRunning() ? L.T("running") : L.T("stopped"))} · {StartText(StartType())}";
 
     public override string Capture() => $"{StartType()}|{(IsRunning() ? 1 : 0)}";
 
@@ -136,7 +136,7 @@ sealed class ServiceItem : BgItem
         WithService(SERVICE_CHANGE_CONFIG | SERVICE_STOP | SERVICE_QUERY_STATUS, h =>
         {
             if (!ChangeServiceConfigW(h, SERVICE_NO_CHANGE, DISABLED, SERVICE_NO_CHANGE, null, null, IntPtr.Zero, null, null, null, null))
-                throw new InvalidOperationException("Windows did not allow changing the start type: " + Win32Text(Marshal.GetLastWin32Error()));
+                throw new InvalidOperationException(L.F("Windows did not allow changing the start type: {0}", Win32Text(Marshal.GetLastWin32Error())));
 
             if (QueryServiceStatus(h, out var st) && st.CurrentState != SERVICE_STOPPED)
             {
@@ -144,7 +144,7 @@ sealed class ServiceItem : BgItem
                 {
                     int err = Marshal.GetLastWin32Error();
                     if (err != 1062) // already stopped
-                        throw new InvalidOperationException("disabled, but it did not stop: " + Win32Text(err));
+                        throw new InvalidOperationException(L.F("disabled, but it did not stop: {0}", Win32Text(err)));
                 }
                 for (int i = 0; i < 40 && QueryServiceStatus(h, out st) && st.CurrentState != SERVICE_STOPPED; i++)
                     Thread.Sleep(250);
@@ -161,7 +161,7 @@ sealed class ServiceItem : BgItem
         WithService(SERVICE_CHANGE_CONFIG | SERVICE_START | SERVICE_QUERY_STATUS, h =>
         {
             if (!ChangeServiceConfigW(h, SERVICE_NO_CHANGE, start, SERVICE_NO_CHANGE, null, null, IntPtr.Zero, null, null, null, null))
-                throw new InvalidOperationException("could not restore the start type: " + Win32Text(Marshal.GetLastWin32Error()));
+                throw new InvalidOperationException(L.F("could not restore the start type: {0}", Win32Text(Marshal.GetLastWin32Error())));
             if (wasRunning && QueryServiceStatus(h, out var st) && st.CurrentState != SERVICE_RUNNING)
             {
                 if (!StartServiceW(h, 0, null))
@@ -211,17 +211,17 @@ sealed class TaskItem : BgItem
     public override string Describe()
     {
         var t = GetTask();
-        if (t == null) return "not present";
+        if (t == null) return L.T("not present");
         bool enabled = t.Enabled;
         int state = t.State; // 4 = running
-        return (enabled ? "enabled" : "disabled") + (state == 4 ? ", running now" : "");
+        return (enabled ? L.T("enabled") : L.T("disabled")) + (state == 4 ? L.T(", running now") : "");
     }
 
     public override string Capture() => GetTask()?.Enabled == true ? "1" : "0";
 
     public override void Apply(PauseMode mode)
     {
-        var t = GetTask() ?? throw new InvalidOperationException("task not found");
+        var t = GetTask() ?? throw new InvalidOperationException(L.T("task not found"));
         try
         {
             if ((int)t.State == 4) t.Stop(0);
@@ -229,13 +229,13 @@ sealed class TaskItem : BgItem
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException("Windows did not allow disabling the task (it is protected by the system): " + ex.Message);
+            throw new InvalidOperationException(L.F("Windows did not allow disabling the task (it is protected by the system): {0}", ex.Message));
         }
     }
 
     public override void Restore(string original)
     {
-        var t = GetTask() ?? throw new InvalidOperationException("task not found");
+        var t = GetTask() ?? throw new InvalidOperationException(L.T("task not found"));
         t.Enabled = original == "1";
     }
 
@@ -262,8 +262,10 @@ sealed class RegistryItem : BgItem
         return k?.GetValue(v.Name);
     }
 
-    public override string Describe() =>
-        Values.All(v => Equals(Convert.ToString(Read(v), CultureInfo.InvariantCulture), Convert.ToString(v.Target, CultureInfo.InvariantCulture))) ? OffText : OnText;
+    bool AllAtTarget() =>
+        Values.All(v => Equals(Convert.ToString(Read(v), CultureInfo.InvariantCulture), Convert.ToString(v.Target, CultureInfo.InvariantCulture)));
+
+    public override string Describe() => AllAtTarget() ? L.T(OffText) : L.T(OnText);
 
     public override string Capture() =>
         JsonSerializer.Serialize(Values.Select(v => Read(v) is { } o ? Convert.ToString(o, CultureInfo.InvariantCulture) : null).ToArray());
@@ -290,7 +292,7 @@ sealed class RegistryItem : BgItem
         }
     }
 
-    public override bool IsOff() => Describe() == OffText;
+    public override bool IsOff() => AllAtTarget();
 
     // without these values Windows uses its defaults (everything on)
     public override void EnableDefault() =>
@@ -324,8 +326,8 @@ sealed class UpdatePauseItem : BgItem
 
     public override string Describe() =>
         CurrentPauseUntilUtc() is { } until
-            ? $"paused until {until.ToLocalTime().ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}"
-            : "updates are not paused";
+            ? L.F("paused until {0}", L.Date(until.ToLocalTime()))
+            : L.T("updates are not paused");
 
     public override string Capture()
     {
@@ -486,7 +488,7 @@ static class BackgroundServices
                 }
                 catch (Exception ex)
                 {
-                    errors.Add($"{item.Title}: {ex.Message}");
+                    errors.Add($"{L.T(item.Title)}: {ex.Message}");
                     Log.Write($"Background: {item.Title} not changed: {ex.Message}");
                 }
             }
@@ -529,7 +531,7 @@ static class BackgroundServices
                 }
                 catch (Exception ex)
                 {
-                    errors.Add($"{item.Title}: {ex.Message}");
+                    errors.Add($"{L.T(item.Title)}: {ex.Message}");
                     Log.Write($"Background: could not restore {item.Title}: {ex.Message}");
                 }
             }
@@ -544,8 +546,8 @@ static class BackgroundServices
         var e = state.FirstOrDefault(s => s.Id == item.Id);
         if (e == null) return null;
         return e.Mode == PauseMode.Temporary
-            ? $"paused for session (since {e.At.ToString("HH:mm", CultureInfo.InvariantCulture)})"
-            : $"disabled (since {e.At.ToString("MMM d", CultureInfo.InvariantCulture)})";
+            ? L.F("paused for session (since {0})", e.At.ToString("HH:mm", CultureInfo.InvariantCulture))
+            : L.F("disabled (since {0})", L.Day(e.At));
     }
 
     /// <summary>Raised after any change (from the window, the tray or game prep). Not raised on the UI thread.</summary>
@@ -581,28 +583,28 @@ static class BackgroundServices
             {
                 var (_, errors) = RestoreOne(id);
                 if (errors.Count > 0) throw new InvalidOperationException(errors[0]);
-                return $"{item.Title}: restored";
+                return L.F("{0}: restored", L.T(item.Title));
             }
             case BgStatus.OffInWindows:
                 lock (Sync) item.EnableDefault();
                 Log.Write($"Background: {item.Title} enabled with the Windows default");
                 RaiseChanged();
-                return $"{item.Title}: enabled (Windows default)";
+                return L.F("{0}: enabled (Windows default)", L.T(item.Title));
             default:
             {
                 var (_, errors) = Apply(new[] { id }, PauseMode.Temporary);
                 if (errors.Count > 0) throw new InvalidOperationException(errors[0]);
-                return $"{item.Title}: paused for this gaming session";
+                return L.F("{0}: paused for this gaming session", L.T(item.Title));
             }
         }
     }
 
     public static string StatusText(BgStatus s) => s switch
     {
-        BgStatus.PausedForGame => "paused for session",
-        BgStatus.DisabledPermanently => "disabled permanently",
-        BgStatus.OffInWindows => "disabled in Windows",
-        _ => "running",
+        BgStatus.PausedForGame => L.T("paused for session"),
+        BgStatus.DisabledPermanently => L.T("disabled permanently"),
+        BgStatus.OffInWindows => L.T("disabled in Windows"),
+        _ => L.T("running"),
     };
 }
 

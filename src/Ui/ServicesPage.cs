@@ -18,12 +18,11 @@ sealed class ServicesPage : UserControl, IPage
         _app = app;
         var P = Theme.P;
 
-        var title = Theme.PageTitle("Windows background services");
+        var title = Theme.PageTitle(L.T("Windows background services"));
         var hint = Theme.PageHint(
-            "A toggle pauses the service for this gaming session; StaScan restores it automatically after a reboot. " +
-            "Use ⋯ to disable an item permanently.", 40);
+            L.T("A toggle pauses the service for this gaming session; StaScan restores it automatically after a reboot. Use ⋯ to disable an item permanently."), 40);
 
-        _withPrepare = Theme.Check("Pause services marked \"Include in prep\" when \"Prepare for gaming\" is clicked", app.Settings.PauseBackground);
+        _withPrepare = Theme.Check(L.T("Pause services marked \"Include in prep\" when \"Prepare for gaming\" is clicked"), app.Settings.PauseBackground);
         _withPrepare.CheckedChanged += (_, _) =>
         {
             _app.Settings.PauseBackground = _withPrepare.Checked;
@@ -33,11 +32,11 @@ sealed class ServicesPage : UserControl, IPage
         var optionHost = new Panel { Dock = DockStyle.Top, Height = 36 };
         optionHost.Controls.Add(_withPrepare);
 
-        _pauseSelected = Theme.Primary("Pause marked now");
-        _restoreAll = Theme.Secondary("Restore all");
-        _refresh = Theme.Secondary("Refresh");
-        _pauseSelected.Click += async (_, _) => await RunBulk(() => BackgroundServices.Apply(_app.Settings.BackgroundItemIds, PauseMode.Temporary), "Paused");
-        _restoreAll.Click += async (_, _) => await RunBulk(() => BackgroundServices.Restore(), "Restored");
+        _pauseSelected = Theme.Primary(L.T("Pause marked now"));
+        _restoreAll = Theme.Secondary(L.T("Restore all"));
+        _refresh = Theme.Secondary(L.T("Refresh"));
+        _pauseSelected.Click += async (_, _) => await RunBulk(() => BackgroundServices.Apply(_app.Settings.BackgroundItemIds, PauseMode.Temporary), L.T("Paused"));
+        _restoreAll.Click += async (_, _) => await RunBulk(() => BackgroundServices.Restore(), L.T("Restored"));
         _refresh.Click += (_, _) => RefreshAll();
         var toolbar = Theme.Toolbar(_pauseSelected, _restoreAll, _refresh);
 
@@ -59,25 +58,25 @@ sealed class ServicesPage : UserControl, IPage
             if (item.Group != group)
             {
                 group = item.Group;
-                _rows.Controls.Add(new Label { Text = group, Font = Theme.Group, Height = 36, Padding = new Padding(4, 14, 0, 0), Margin = new Padding(0) });
+                _rows.Controls.Add(new Label { Text = L.T(group), Font = Theme.Group, Height = 36, Padding = new Padding(4, 14, 0, 0), Margin = new Padding(0) });
             }
             var row = new ServiceRow(item, app.Settings.BackgroundItemIds.Contains(item.Id));
             row.ToggleRequested += async () => await RunOne(() => BackgroundServices.Toggle(item.Id));
             row.PermanentRequested += async () =>
             {
-                if (Confirm($"\"{item.Title}\" will be disabled and will stay off after a reboot until you restore it here or from the tray menu. Continue?"))
+                if (Confirm(L.F("\"{0}\" will be disabled and will stay off after a reboot until you restore it here or from the tray menu. Continue?", L.T(item.Title))))
                     await RunOne(() =>
                     {
                         var (_, errors) = BackgroundServices.Apply(new[] { item.Id }, PauseMode.Permanent);
                         if (errors.Count > 0) throw new InvalidOperationException(errors[0]);
-                        return $"{item.Title}: disabled permanently";
+                        return L.F("{0}: disabled permanently", L.T(item.Title));
                     });
             };
             row.RestoreRequested += async () => await RunOne(() =>
             {
                 var (ok, errors) = BackgroundServices.RestoreOne(item.Id);
                 if (errors.Count > 0) throw new InvalidOperationException(errors[0]);
-                return ok > 0 ? $"{item.Title}: restored" : $"{item.Title}: StaScan has not changed it";
+                return ok > 0 ? L.F("{0}: restored", L.T(item.Title)) : L.F("{0}: StaScan has not changed it", L.T(item.Title));
             });
             row.InPrepareChanged += on =>
             {
@@ -151,7 +150,7 @@ sealed class ServicesPage : UserControl, IPage
         catch (Exception ex)
         {
             _status.ForeColor = Theme.P.Warn;
-            _status.Text = "Failed: " + ex.Message;
+            _status.Text = L.F("Failed: {0}", ex.Message);
             Log.Write($"Services: {ex.Message}");
         }
         finally
@@ -168,8 +167,8 @@ sealed class ServicesPage : UserControl, IPage
         {
             var (ok, errors) = await Task.Run(action);
             _status.ForeColor = errors.Count > 0 ? Theme.P.Warn : Theme.P.Muted;
-            _status.Text = $"{doneText}: {ok}." + (errors.Count > 0 ? "  Failed: " + string.Join("; ", errors) : "");
-            _app.Notify($"{doneText}: {ok}." + (errors.Count > 0 ? $" Errors: {errors.Count}." : ""),
+            _status.Text = $"{doneText}: {ok}." + (errors.Count > 0 ? "  " + L.F("Failed: {0}", string.Join("; ", errors)) : "");
+            _app.Notify($"{doneText}: {ok}." + (errors.Count > 0 ? " " + L.F("Errors: {0}.", errors.Count) : ""),
                 errors.Count > 0 ? ToolTipIcon.Warning : ToolTipIcon.Info);
         }
         finally
@@ -186,7 +185,7 @@ sealed class ServicesPage : UserControl, IPage
         foreach (var c in new Control[] { _pauseSelected, _restoreAll, _refresh }) c.Enabled = !b;
         foreach (var r in _rowList) r.Enabled = !b;
         UseWaitCursor = b;
-        if (b) { _status.ForeColor = Theme.P.Muted; _status.Text = "Working…"; }
+        if (b) { _status.ForeColor = Theme.P.Muted; _status.Text = L.T("Working…"); }
     }
 
     bool Confirm(string text) =>
@@ -215,8 +214,8 @@ sealed class ServiceRow : UserControl
         _switch = new ToggleSwitch { Anchor = AnchorStyles.Left };
         _switch.Click += (_, _) => ToggleRequested?.Invoke();
 
-        var title = new Label { Text = item.Title, Font = Theme.Bold, AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
-        var desc = new Label { Text = item.Description, Font = Theme.Small, ForeColor = P.Muted, AutoSize = false, Dock = DockStyle.Fill, AutoEllipsis = true };
+        var title = new Label { Text = L.T(item.Title), Font = Theme.Bold, AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
+        var desc = new Label { Text = L.T(item.Description), Font = Theme.Small, ForeColor = P.Muted, AutoSize = false, Dock = DockStyle.Fill, AutoEllipsis = true };
         var text = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1, Margin = new Padding(0) };
         text.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         text.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -225,14 +224,14 @@ sealed class ServiceRow : UserControl
 
         _state = new Label { AutoSize = false, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Font = Theme.Small };
 
-        var prep = Theme.Check("Include in prep", inPrepare);
+        var prep = Theme.Check(L.T("Include in prep"), inPrepare);
         prep.Anchor = AnchorStyles.Left;
         prep.CheckedChanged += (_, _) => InPrepareChanged?.Invoke(prep.Checked);
-        _tip.SetToolTip(prep, "Pause this item with \"Prepare for gaming\" (when enabled at the top of this section)");
+        _tip.SetToolTip(prep, L.T("Pause this item with \"Prepare for gaming\" (when enabled at the top of this section)"));
 
         var menu = new ContextMenuStrip { Renderer = Theme.MenuRenderer() };
-        _permItem = new ToolStripMenuItem("Disable permanently…", null, (_, _) => PermanentRequested?.Invoke());
-        _restoreItem = new ToolStripMenuItem("Restore", null, (_, _) => RestoreRequested?.Invoke());
+        _permItem = new ToolStripMenuItem(L.T("Disable permanently…"), null, (_, _) => PermanentRequested?.Invoke());
+        _restoreItem = new ToolStripMenuItem(L.T("Restore"), null, (_, _) => RestoreRequested?.Invoke());
         menu.Items.Add(_permItem);
         menu.Items.Add(_restoreItem);
         var more = new UiButton("⋯", ButtonKind.Icon) { Anchor = AnchorStyles.None };
@@ -271,13 +270,13 @@ sealed class ServiceRow : UserControl
         _state.Text = status switch
         {
             BgStatus.PausedForGame or BgStatus.DisabledPermanently => $"{mark}\n{now}",
-            BgStatus.OffInWindows => $"disabled in Windows\n{now}",
+            BgStatus.OffInWindows => L.T("disabled in Windows") + "\n" + now,
             _ => now,
         };
         _permItem.Enabled = status != BgStatus.DisabledPermanently && status != BgStatus.OffInWindows;
         _restoreItem.Enabled = status is BgStatus.PausedForGame or BgStatus.DisabledPermanently;
         _tip.SetToolTip(_switch, status == BgStatus.OffInWindows
-            ? "Disabled outside StaScan. Turning it on applies the Windows default"
-            : "On = running. Turn off to pause for this gaming session");
+            ? L.T("Disabled outside StaScan. Turning it on applies the Windows default")
+            : L.T("On = running. Turn off to pause for this gaming session"));
     }
 }

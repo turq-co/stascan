@@ -101,7 +101,7 @@ sealed class GameWatcher : IDisposable
 
         var result = GamePrep.Run(options, _ => { });
         lock (_pausedByGameMode) _pausedByGameMode.AddRange(result.PausedIds);
-        _notify($"Game mode on for {game}. {result.Brief}", result.Warn ? ToolTipIcon.Warning : ToolTipIcon.Info);
+        _notify(L.F("Game mode on for {0}.", game) + " " + result.Brief, result.Warn ? ToolTipIcon.Warning : ToolTipIcon.Info);
     }
 
     void Deactivate(string reason)
@@ -129,8 +129,8 @@ sealed class GameWatcher : IDisposable
         }
         StateChanged?.Invoke();
         _notify(restored > 0
-            ? $"Game mode off ({game} closed). Background services restored: {restored}."
-            : $"Game mode off ({game} closed).", ToolTipIcon.Info);
+            ? L.F("Game mode off ({0} closed). Background services restored: {1}.", game, restored)
+            : L.F("Game mode off ({0} closed).", game), ToolTipIcon.Info);
     }
 
     public void Dispose() => _timer.Dispose();

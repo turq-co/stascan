@@ -14,6 +14,8 @@ sealed class AppServices
     public required Action Cs2SettingChanged { get; init; }
     /// <summary>Change the theme: the window is recreated and reopened on the given section.</summary>
     public required Action<ThemeMode, Page> ChangeTheme { get; init; }
+    /// <summary>Change the UI language: the tray menu is rebuilt and the window recreated.</summary>
+    public required Action<UiLanguage, Page> ChangeLanguage { get; init; }
 
     /// <summary>Game mode settings were changed in the window.</summary>
     public required Action GameModeSettingsChanged { get; init; }
@@ -51,7 +53,7 @@ sealed class MainForm : Form
     {
         _app = app;
         var P = Theme.P;
-        Text = "StaScan";
+        Text = L.T("StaScan");
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1080, 700);
         MinimumSize = new Size(840, 540);
@@ -64,7 +66,7 @@ sealed class MainForm : Form
         var nav = new Panel { Dock = DockStyle.Left, Width = 210, BackColor = P.Surface, Padding = new Padding(8, 12, 8, 8) };
         var brand = new Label
         {
-            Text = "StaScan",
+            Text = L.T("StaScan"),
             Font = new Font("Segoe UI Semibold", 14f),
             Dock = DockStyle.Top,
             Height = 50,
@@ -84,7 +86,7 @@ sealed class MainForm : Form
         // Dock = Top stacks from the bottom up, so add the items in reverse order
         foreach (var (page, text) in items.Reverse())
         {
-            var b = new UiButton(text, ButtonKind.Nav) { Dock = DockStyle.Top };
+            var b = new UiButton(L.T(text), ButtonKind.Nav) { Dock = DockStyle.Top };
             b.Click += (_, _) => ShowPage(page);
             _nav[page] = b;
             nav.Controls.Add(b);
@@ -101,7 +103,7 @@ sealed class MainForm : Form
             if (_pages.Values.OfType<IPage>().Any(p => p.IsBusy))
             {
                 e.Cancel = true;
-                MessageBox.Show(this, "Please wait, StaScan is still working.", "StaScan", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, L.T("Please wait, StaScan is still working."), "StaScan", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         };
     }

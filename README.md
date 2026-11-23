@@ -66,6 +66,7 @@ Shows how many chips (hubs and the chipset) sit between your mouse or keyboard a
 ### Interface
 - A single main window with four sections: Game prep, Background services, USB ports and Settings.
 - **Themes.** Light and dark themes, or follow the Windows app theme automatically.
+- **Languages.** English and Russian; by default the Windows display language is used. Translations live in [`assets/i18n`](assets/i18n), keyed by the English text, so adding a language means adding one JSON file.
 - **Tray menu.** Quick access to every action, including a per-service toggle submenu.
 - **Global hotkeys** (can be turned off in Settings):
 

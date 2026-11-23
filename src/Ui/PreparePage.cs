@@ -23,25 +23,25 @@ sealed class PreparePage : UserControl, IPage
     {
         _app = app;
 
-        var title = Theme.PageTitle("Game prep");
+        var title = Theme.PageTitle(L.T("Game prep"));
         _header = Theme.PageHint("", 44);
 
         _list = Theme.List(checkBoxes: true);
-        _list.Columns.Add("Program", 220);
-        _list.Columns.Add("Processes", 90, HorizontalAlignment.Right);
-        _list.Columns.Add("RAM", 90, HorizontalAlignment.Right);
-        _list.Columns.Add("Path", 340);
+        _list.Columns.Add(L.T("Program"), 220);
+        _list.Columns.Add(L.T("Processes"), 90, HorizontalAlignment.Right);
+        _list.Columns.Add(L.T("RAM"), 90, HorizontalAlignment.Right);
+        _list.Columns.Add(L.T("Path"), 340);
         var itemMenu = new ContextMenuStrip { Renderer = Theme.MenuRenderer() };
-        itemMenu.Items.Add("Add to whitelist (never offer again)", null, (_, _) => WhitelistSelected());
-        itemMenu.Items.Add("Open file location", null, (_, _) => RevealSelected());
+        itemMenu.Items.Add(L.T("Add to whitelist (never offer again)"), null, (_, _) => WhitelistSelected());
+        itemMenu.Items.Add(L.T("Open file location"), null, (_, _) => RevealSelected());
         _list.ContextMenuStrip = itemMenu;
         var listHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20, 0, 20, 0) };
         listHost.Controls.Add(_list);
 
-        _checkAll = Theme.Secondary("Select all");
-        _checkNone = Theme.Secondary("Select none");
-        _refresh = Theme.Secondary("Refresh list");
-        var usb = Theme.Secondary("Check USB ports");
+        _checkAll = Theme.Secondary(L.T("Select all"));
+        _checkNone = Theme.Secondary(L.T("Select none"));
+        _refresh = Theme.Secondary(L.T("Refresh list"));
+        var usb = Theme.Secondary(L.T("Check USB ports"));
         _checkAll.Click += (_, _) => SetAllChecked(true);
         _checkNone.Click += (_, _) => SetAllChecked(false);
         _refresh.Click += (_, _) => LoadCandidates();
@@ -50,10 +50,10 @@ sealed class PreparePage : UserControl, IPage
         listButtons.Dock = DockStyle.Bottom;
         listButtons.Padding = new Padding(16, 8, 16, 0);
 
-        _memory = Theme.Check("Free up RAM (working sets, standby list, file cache)", S.CleanMemory);
-        _explorer = Theme.Check("Restart File Explorer (explorer.exe)", S.RestartExplorer);
-        _dnsTemp = Theme.Check("Flush DNS cache and delete old files from %TEMP%", S.FlushDnsAndTemp);
-        _cs2Affinity = Theme.Check("Exclude CPU 0 for CS2 (also applies if the game is launched later)", S.Cs2SkipCpu0);
+        _memory = Theme.Check(L.T("Free up RAM (working sets, standby list, file cache)"), S.CleanMemory);
+        _explorer = Theme.Check(L.T("Restart File Explorer (explorer.exe)"), S.RestartExplorer);
+        _dnsTemp = Theme.Check(L.T("Flush DNS cache and delete old files from %TEMP%"), S.FlushDnsAndTemp);
+        _cs2Affinity = Theme.Check(L.T("Exclude CPU 0 for CS2 (also applies if the game is launched later)"), S.Cs2SkipCpu0);
         _bgNote = new Label { AutoSize = true, ForeColor = Theme.P.Muted, Margin = new Padding(0, 6, 0, 0) };
 
         var actions = new FlowLayoutPanel
@@ -64,11 +64,11 @@ sealed class PreparePage : UserControl, IPage
             AutoSize = true,
             Padding = new Padding(20, 0, 20, 4),
         };
-        actions.Controls.AddRange(new Control[] { Theme.Section("Also"), _memory, _explorer, _dnsTemp, _cs2Affinity, _bgNote });
+        actions.Controls.AddRange(new Control[] { Theme.Section(L.T("Also")), _memory, _explorer, _dnsTemp, _cs2Affinity, _bgNote });
 
         _status = new Label { Dock = DockStyle.Fill, Padding = new Padding(20, 8, 20, 0) };
         _progress = new ProgressBar { Dock = DockStyle.Top, Height = 4, Style = ProgressBarStyle.Marquee, Visible = false };
-        _run = Theme.Primary("Prepare for gaming");
+        _run = Theme.Primary(L.T("Prepare for gaming"));
         _run.Click += async (_, _) => await RunAsync();
         var runHost = new FlowLayoutPanel { Dock = DockStyle.Right, FlowDirection = FlowDirection.RightToLeft, AutoSize = true, Padding = new Padding(16, 10, 16, 10) };
         runHost.Controls.Add(_run);
@@ -91,8 +91,8 @@ sealed class PreparePage : UserControl, IPage
         _cs2Affinity.Checked = S.Cs2SkipCpu0;
         int n = S.BackgroundItemIds.Count;
         _bgNote.Text = S.PauseBackground
-            ? $"Background services marked in the Background services section ({n}) will also be paused."
-            : "Background services are left alone (this can be turned on in the Background services section).";
+            ? L.F("Background services marked in the Background services section ({0}) will also be paused.", n)
+            : L.T("Background services are left alone (this can be turned on in the Background services section).");
         LoadCandidates();
     }
 
@@ -111,11 +111,11 @@ sealed class PreparePage : UserControl, IPage
         _list.EndUpdate();
 
         long total = groups.Sum(g => g.WorkingSet);
-        var taken = baseline.TakenAt.ToString("MMM d, HH:mm", CultureInfo.InvariantCulture) + (baseline.Pinned ? ", pinned" : "");
+        var taken = L.DayTime(baseline.TakenAt) + (baseline.Pinned ? L.T(", pinned") : "");
         _header.Text = groups.Count == 0
-            ? $"No new programs since the snapshot ({taken}). You can still free up RAM."
-            : $"Programs started since the snapshot ({taken}): {groups.Count}, using {Native.Mb((ulong)total)}. " +
-              "Checked programs will be closed, so save your work first.";
+            ? L.F("No new programs since the snapshot ({0}). You can still free up RAM.", taken)
+            : L.F("Programs started since the snapshot ({0}): {1}, using {2}. Checked programs will be closed, so save your work first.",
+                taken, groups.Count, Native.Mb((ulong)total));
     }
 
     void SetAllChecked(bool value)
@@ -160,7 +160,7 @@ sealed class PreparePage : UserControl, IPage
 
         if (selected.Count == 0 && !mem && !explorer && !dnsTemp && !background)
         {
-            _status.Text = S.Cs2SkipCpu0 ? "Saved: CPU 0 will be excluded for CS2." : "Nothing selected.";
+            _status.Text = S.Cs2SkipCpu0 ? L.T("Saved: CPU 0 will be excluded for CS2.") : L.T("Nothing selected.");
             return;
         }
 
@@ -177,7 +177,7 @@ sealed class PreparePage : UserControl, IPage
         catch (Exception ex)
         {
             Log.Write($"Game prep failed: {ex}");
-            result = new PrepResult($"Error: {ex.Message}", "Game prep failed, see the log for details.", true, new());
+            result = new PrepResult(L.F("Error: {0}", ex.Message), L.T("Game prep failed, see the log for details."), true, new());
         }
 
         SetBusy(false);

@@ -31,7 +31,7 @@ static class ProcessKiller
             }
         }
 
-        status($"Closing windows ({procs.Count} processes)…");
+        status(L.F("Closing windows ({0} processes)…", procs.Count));
         var asked = new List<Process>();
         foreach (var p in procs)
         {
@@ -47,7 +47,7 @@ static class ProcessKiller
         while (sw.ElapsedMilliseconds < 5000 && asked.Any(p => !HasExited(p)))
             Thread.Sleep(250);
 
-        status("Terminating the remaining processes…");
+        status(L.T("Terminating the remaining processes…"));
         int closed = 0;
         foreach (var p in procs)
         {

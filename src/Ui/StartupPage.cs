@@ -11,20 +11,19 @@ sealed class StartupPage : UserControl, IPage
 
     public StartupPage()
     {
-        var title = Theme.PageTitle("Startup apps");
+        var title = Theme.PageTitle(L.T("Startup apps"));
         var hint = Theme.PageHint(
-            "Programs that start with Windows keep running in the background all session. Uncheck the ones you do not need. " +
-            "This works exactly like Task Manager → Startup apps, so items can be turned back on from either place.", 40);
+            L.T("Programs that start with Windows keep running in the background all session. Uncheck the ones you do not need. This works exactly like Task Manager → Startup apps, so items can be turned back on from either place."), 40);
 
         _list = Theme.List(checkBoxes: true);
-        _list.Columns.Add("Program", 220);
-        _list.Columns.Add("Location", 200);
-        _list.Columns.Add("Command", 400);
+        _list.Columns.Add(L.T("Program"), 220);
+        _list.Columns.Add(L.T("Location"), 200);
+        _list.Columns.Add(L.T("Command"), 400);
         _list.ItemChecked += OnItemChecked;
         var host = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20, 0, 20, 0) };
         host.Controls.Add(_list);
 
-        var refresh = Theme.Secondary("Refresh");
+        var refresh = Theme.Secondary(L.T("Refresh"));
         refresh.Click += (_, _) => Reload();
         var toolbar = Theme.Toolbar(refresh);
         toolbar.Dock = DockStyle.Bottom;
@@ -49,7 +48,7 @@ sealed class StartupPage : UserControl, IPage
             _list.BeginUpdate();
             _list.Items.Clear();
             foreach (var app in apps)
-                _list.Items.Add(new ListViewItem(new[] { app.Name, app.Location, app.Command })
+                _list.Items.Add(new ListViewItem(new[] { app.Name, L.T(app.Location), app.Command })
                 {
                     Checked = app.Enabled,
                     Tag = app,
@@ -59,11 +58,11 @@ sealed class StartupPage : UserControl, IPage
             _list.EndUpdate();
             int on = apps.Count(a => a.Enabled);
             _status.ForeColor = Theme.P.Muted;
-            _status.Text = $"{apps.Count} startup items, {on} enabled.";
+            _status.Text = L.F("{0} startup items, {1} enabled.", apps.Count, on);
         }
         catch (Exception ex)
         {
-            _status.Text = "Could not read startup apps: " + ex.Message;
+            _status.Text = L.F("Could not read startup apps: {0}", ex.Message);
             Log.Write($"Startup apps: {ex}");
         }
         finally
@@ -81,12 +80,12 @@ sealed class StartupPage : UserControl, IPage
             e.Item.ForeColor = e.Item.Checked ? Theme.P.Text : Theme.P.Muted;
             e.Item.Tag = app with { Enabled = e.Item.Checked };
             _status.ForeColor = Theme.P.Muted;
-            _status.Text = $"{app.Name}: {(e.Item.Checked ? "will start with Windows" : "will not start with Windows")} (takes effect at next sign-in).";
+            _status.Text = L.F(e.Item.Checked ? "{0}: will start with Windows (takes effect at next sign-in)." : "{0}: will not start with Windows (takes effect at next sign-in).", app.Name);
         }
         catch (Exception ex)
         {
             _status.ForeColor = Theme.P.Warn;
-            _status.Text = $"Could not change {app.Name}: {ex.Message}";
+            _status.Text = L.F("Could not change {0}: {1}", app.Name, ex.Message);
             _loading = true;
             e.Item.Checked = !e.Item.Checked;
             _loading = false;

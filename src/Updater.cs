@@ -55,7 +55,7 @@ static class Updater
     /// <summary>Downloads the installer to %TEMP%, verifies its size and SHA-256, and returns the file path.</summary>
     public static async Task<string> DownloadAsync(UpdateInfo update, IProgress<int> progress)
     {
-        if (update.SetupUrl == null || update.SetupName == null) throw new InvalidOperationException("the release has no installer attached");
+        if (update.SetupUrl == null || update.SetupName == null) throw new InvalidOperationException(L.T("the release has no installer attached"));
         var path = Path.Combine(Path.GetTempPath(), update.SetupName);
         using var http = Client();
         http.Timeout = TimeSpan.FromMinutes(10);
@@ -76,13 +76,13 @@ static class Updater
         }
 
         if (update.SetupSize > 0 && new FileInfo(path).Length != update.SetupSize)
-            throw new InvalidOperationException("the download is incomplete");
+            throw new InvalidOperationException(L.T("the download is incomplete"));
         if (update.Sha256 != null)
         {
             await using var fs = File.OpenRead(path);
             var hash = Convert.ToHexString(await SHA256.HashDataAsync(fs));
             if (!hash.Equals(update.Sha256, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("the installer checksum does not match the release");
+                throw new InvalidOperationException(L.T("the installer checksum does not match the release"));
         }
         Log.Write($"Update {update.Tag} downloaded to {path}");
         return path;

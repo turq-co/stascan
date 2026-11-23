@@ -24,6 +24,7 @@ sealed class Settings
     public bool Cs2SkipCpu0 { get; set; }
 
     public ThemeMode Theme { get; set; } = ThemeMode.System;
+    public UiLanguage Language { get; set; } = UiLanguage.System;
 
     /// <summary>Check GitHub Releases for a newer version once a day.</summary>
     public bool CheckUpdates { get; set; } = true;

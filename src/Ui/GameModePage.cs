@@ -20,10 +20,9 @@ sealed class GameModePage : UserControl, IPage
     {
         _app = app;
 
-        var title = Theme.PageTitle("Game mode");
+        var title = Theme.PageTitle(L.T("Game mode"));
         var hint = Theme.PageHint(
-            "When a game from the list starts, StaScan prepares the PC automatically. When the last game exits, " +
-            "the background services it paused are restored.", 40);
+            L.T("When a game from the list starts, StaScan prepares the PC automatically. When the last game exits, the background services it paused are restored."), 40);
 
         var body = new FlowLayoutPanel
         {
@@ -34,18 +33,18 @@ sealed class GameModePage : UserControl, IPage
             Padding = new Padding(20, 0, 20, 16),
         };
 
-        _enabled = Theme.Check("Turn on game mode automatically when a game starts", S.GameMode);
+        _enabled = Theme.Check(L.T("Turn on game mode automatically when a game starts"), S.GameMode);
         _enabled.Font = Theme.Bold;
         _enabled.CheckedChanged += (_, _) => Save();
         _state = new Label { AutoSize = true, ForeColor = Theme.P.Muted, Margin = new Padding(20, 2, 0, 0) };
         body.Controls.Add(_enabled);
         body.Controls.Add(_state);
 
-        body.Controls.Add(Theme.Section("When a game starts"));
-        _freeMemory = Theme.Check("Free up RAM", S.GameModeFreeMemory);
-        _pauseServices = Theme.Check("Pause background services marked \"Include in prep\"", S.GameModePauseServices);
-        _closeApps = Theme.Check("Close programs started since the snapshot (no confirmation, the game itself is kept)", S.GameModeCloseApps);
-        _restore = Theme.Check("Restore paused services when the last game exits", S.GameModeRestoreOnExit);
+        body.Controls.Add(Theme.Section(L.T("When a game starts")));
+        _freeMemory = Theme.Check(L.T("Free up RAM"), S.GameModeFreeMemory);
+        _pauseServices = Theme.Check(L.T("Pause background services marked \"Include in prep\""), S.GameModePauseServices);
+        _closeApps = Theme.Check(L.T("Close programs started since the snapshot (no confirmation, the game itself is kept)"), S.GameModeCloseApps);
+        _restore = Theme.Check(L.T("Restore paused services when the last game exits"), S.GameModeRestoreOnExit);
         foreach (var c in new[] { _freeMemory, _pauseServices, _closeApps, _restore })
         {
             c.CheckedChanged += (_, _) => Save();
@@ -56,15 +55,15 @@ sealed class GameModePage : UserControl, IPage
             AutoSize = true,
             ForeColor = Theme.P.Muted,
             Margin = new Padding(0, 4, 0, 0),
-            Text = "CS2 CPU 0 exclusion is set in the Game prep section and works independently of game mode.",
+            Text = L.T("CS2 CPU 0 exclusion is set in the Game prep section and works independently of game mode."),
         });
 
-        body.Controls.Add(Theme.Section("Games"));
+        body.Controls.Add(Theme.Section(L.T("Games")));
         body.Controls.Add(new Label
         {
             AutoSize = true,
             ForeColor = Theme.P.Muted,
-            Text = "One executable name per line, for example cs2.exe",
+            Text = L.T("One executable name per line, for example cs2.exe"),
         });
         _games = new TextBox
         {
@@ -78,15 +77,15 @@ sealed class GameModePage : UserControl, IPage
         body.Controls.Add(_games);
 
         _running = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 300, Margin = new Padding(0, 4, 8, 0) };
-        var add = Theme.Secondary("Add running program");
+        var add = Theme.Secondary(L.T("Add running program"));
         add.Click += (_, _) => AddRunning();
-        var refresh = Theme.Secondary("Refresh");
+        var refresh = Theme.Secondary(L.T("Refresh"));
         refresh.Click += (_, _) => FillRunning();
         var addLine = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Margin = new Padding(0) };
         addLine.Controls.AddRange(new Control[] { _running, add, refresh });
         body.Controls.Add(addLine);
 
-        var save = Theme.Primary("Save game list");
+        var save = Theme.Primary(L.T("Save game list"));
         save.Margin = new Padding(0, 10, 0, 0);
         _saved = new Label { AutoSize = true, ForeColor = Theme.P.Accent, Margin = new Padding(12, 19, 0, 0) };
         save.Click += (_, _) => SaveGames();
@@ -123,10 +122,10 @@ sealed class GameModePage : UserControl, IPage
     {
         var (game, since) = _app.GetActiveGame();
         _state.Text = !S.GameMode
-            ? "Game mode is off."
+            ? L.T("Game mode is off.")
             : game != null
-                ? $"Active: {game} since {since?.ToString("HH:mm", CultureInfo.InvariantCulture)}."
-                : "Waiting for a game to start.";
+                ? L.F("Active: {0} since {1}.", game, since?.ToString("HH:mm", CultureInfo.InvariantCulture))
+                : L.T("Waiting for a game to start.");
         _state.ForeColor = game != null ? Theme.P.Accent : Theme.P.Muted;
     }
 
@@ -165,7 +164,7 @@ sealed class GameModePage : UserControl, IPage
         S.Games = _games.Lines.Select(l => l.Trim()).Where(l => l.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         Save();
-        _saved.Text = "Saved";
+        _saved.Text = L.T("Saved");
         Log.Write($"Game list: {string.Join(", ", S.Games)}");
     }
 

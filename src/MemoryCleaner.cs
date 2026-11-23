@@ -9,7 +9,7 @@ static class MemoryCleaner
     {
         var errors = new List<string>();
         if (!Native.EnablePrivilege("SeProfileSingleProcessPrivilege"))
-            errors.Add("SeProfileSingleProcessPrivilege is not available (is the app running without admin rights?)");
+            errors.Add(L.T("SeProfileSingleProcessPrivilege is not available (is the app running without admin rights?)"));
         if (!Native.EnablePrivilege("SeIncreaseQuotaPrivilege"))
             errors.Add("SeIncreaseQuotaPrivilege is not available");
 

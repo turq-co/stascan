@@ -11,34 +11,34 @@ sealed class UsbPage : UserControl, IPage
 
     public UsbPage()
     {
-        var title = Theme.PageTitle("Mouse and keyboard USB ports");
+        var title = Theme.PageTitle(L.T("Mouse and keyboard USB ports"));
         _summary = Theme.PageHint("", 52);
         _summary.ForeColor = Theme.P.Text;
 
-        var refresh = Theme.Primary("Refresh (after replugging)");
+        var refresh = Theme.Primary(L.T("Refresh (after replugging)"));
         refresh.Click += (_, _) => Reload();
         var toolbar = Theme.Toolbar(refresh);
 
         _devices = Theme.List();
-        _devices.Columns.Add("Device", 220);
-        _devices.Columns.Add("Type", 140);
-        _devices.Columns.Add("Chips to CPU", 110, HorizontalAlignment.Center);
-        _devices.Columns.Add("Path", 310);
+        _devices.Columns.Add(L.T("Device"), 220);
+        _devices.Columns.Add(L.T("Type"), 140);
+        _devices.Columns.Add(L.T("Chips to CPU"), 110, HorizontalAlignment.Center);
+        _devices.Columns.Add(L.T("Path"), 310);
         var devicesHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20, 0, 20, 0) };
         devicesHost.Controls.Add(_devices);
 
-        var ctrlTitle = new Label { Text = "USB controllers", Font = Theme.Group, Dock = DockStyle.Top, Height = 34, Padding = new Padding(0, 10, 0, 0) };
+        var ctrlTitle = new Label { Text = L.T("USB controllers"), Font = Theme.Group, Dock = DockStyle.Top, Height = 34, Padding = new Padding(0, 10, 0, 0) };
         _controllers = Theme.List();
-        _controllers.Columns.Add("Controller", 330);
-        _controllers.Columns.Add("Location", 190);
-        _controllers.Columns.Add("Platform", 250);
+        _controllers.Columns.Add(L.T("Controller"), 330);
+        _controllers.Columns.Add(L.T("Location"), 190);
+        _controllers.Columns.Add(L.T("Platform"), 250);
         var ctrlHint = new Label
         {
             Dock = DockStyle.Bottom,
             Height = 30,
             ForeColor = Theme.P.Muted,
             Padding = new Padding(0, 6, 0, 0),
-            Text = "Your motherboard manual shows which ports belong to which controller.",
+            Text = L.T("Your motherboard manual shows which ports belong to which controller."),
         };
         var ctrlHost = new Panel { Dock = DockStyle.Bottom, Height = 170, Padding = new Padding(20, 0, 20, 4) };
         ctrlHost.Controls.Add(_controllers);
@@ -65,7 +65,7 @@ sealed class UsbPage : UserControl, IPage
         catch (Exception ex)
         {
             Log.Write($"USB check failed: {ex}");
-            _summary.Text = "Could not read USB devices, see the log for details.";
+            _summary.Text = L.T("Could not read USB devices, see the log for details.");
             return;
         }
 
@@ -75,21 +75,21 @@ sealed class UsbPage : UserControl, IPage
         _devices.Items.Clear();
         foreach (var d in devices)
         {
-            var path = string.Join(" → ", new[] { "device" }
-                .Concat(d.Hubs.Select(h => $"[hub: {h}]"))
-                .Concat(d.Controller.ChipCount > 0 ? new[] { $"[{d.Controller.KindText}]" } : Array.Empty<string>())
+            var path = string.Join(" → ", new[] { L.T("device") }
+                .Concat(d.Hubs.Select(h => L.F("[hub: {0}]", h)))
+                .Concat(d.Controller.ChipCount > 0 ? new[] { $"[{L.T(d.Controller.KindText)}]" } : Array.Empty<string>())
                 .Append("CPU"));
             _devices.Items.Add(new ListViewItem(new[]
             {
                 d.Name,
-                string.IsNullOrEmpty(d.Kind) ? "HID device" : d.Kind,
+                string.IsNullOrEmpty(d.Kind) ? L.T("HID device") : string.Join(" + ", d.Kind.Split(" + ").Select(L.T)),
                 d.ChipCount.ToString(),
                 path,
             })
             {
                 BackColor = Verdict(d.ChipCount, hasDirect),
                 ForeColor = Theme.P.Text,
-                ToolTipText = $"VID {d.Vid} PID {d.Pid}, controller: {d.Controller.Name}",
+                ToolTipText = L.F("VID {0} PID {1}, controller: {2}", d.Vid, d.Pid, d.Controller.Name),
             });
         }
         _devices.EndUpdate();
@@ -97,24 +97,24 @@ sealed class UsbPage : UserControl, IPage
         _controllers.BeginUpdate();
         _controllers.Items.Clear();
         foreach (var c in controllers)
-            _controllers.Items.Add(new ListViewItem(new[] { c.Name, $"{c.KindText} (chips: {c.ChipCount})", c.Platform }));
+            _controllers.Items.Add(new ListViewItem(new[] { c.Name, L.F("{0} (chips: {1})", L.T(c.KindText), c.ChipCount), c.Platform }));
         _controllers.EndUpdate();
 
         var gaming = devices.Where(d => d.Kind.Contains("mouse") || d.Kind.Contains("keyboard")).ToList();
         var worst = gaming.Count > 0 ? gaming.Max(d => d.ChipCount) : 0;
         string verdict;
         if (gaming.Count == 0)
-            verdict = "No USB mouse or keyboard found.";
+            verdict = L.T("No USB mouse or keyboard found.");
         else if (worst == 0)
-            verdict = "✓ Your mouse and keyboard are connected directly to the CPU. That is the best possible setup.";
+            verdict = L.T("✓ Your mouse and keyboard are connected directly to the CPU. That is the best possible setup.");
         else if (!hasDirect && gaming.All(d => d.ChipCount <= 1))
-            verdict = "✓ This motherboard has no CPU-direct USB ports, so connecting through the chipset is the best option here.";
+            verdict = L.T("✓ This motherboard has no CPU-direct USB ports, so connecting through the chipset is the best option here.");
         else if (gaming.Any(d => d.Hubs.Count > 0))
-            verdict = "! Some devices go through a hub (in a monitor, a keyboard, the case front panel, etc.). Plug them directly into the motherboard.";
+            verdict = L.T("! Some devices go through a hub (in a monitor, a keyboard, the case front panel, etc.). Plug them directly into the motherboard.");
         else
-            verdict = "! Your devices go through the chipset, but this motherboard has CPU-direct ports. Move the mouse and keyboard to those ports and click Refresh.";
+            verdict = L.T("! Your devices go through the chipset, but this motherboard has CPU-direct ports. Move the mouse and keyboard to those ports and click Refresh.");
 
-        _summary.Text = verdict + "\n0 chips = direct to the CPU, 1 = through the chipset, 2 or more = through a hub as well.";
+        _summary.Text = verdict + "\n" + L.T("0 chips = direct to the CPU, 1 = through the chipset, 2 or more = through a hub as well.");
         Log.Write($"USB check: {string.Join("; ", devices.Select(d => $"{d.Name} ({d.Kind}) chips={d.ChipCount}"))}");
     }
 

@@ -63,7 +63,7 @@ sealed class AffinityWatcher : IDisposable
                         if (_applied.Add(p.Id))
                         {
                             Log.Write($"cs2.exe (PID {p.Id}): CPU 0 excluded, mask 0x{TargetMask().ToInt64():X}");
-                            _notify("CS2: CPU 0 is now excluded for the game.", ToolTipIcon.Info);
+                            _notify(L.T("CS2: CPU 0 is now excluded for the game."), ToolTipIcon.Info);
                         }
                         else
                         {
@@ -74,7 +74,7 @@ sealed class AffinityWatcher : IDisposable
                     {
                         _failed.Add(p.Id);
                         Log.Write($"cs2.exe (PID {p.Id}): could not change CPU affinity: {ex.Message}");
-                        _notify("Could not exclude CPU 0 for CS2 (an anti-cheat may be blocking it). See the log for details.", ToolTipIcon.Warning);
+                        _notify(L.T("Could not exclude CPU 0 for CS2 (an anti-cheat may be blocking it). See the log for details."), ToolTipIcon.Warning);
                     }
                 }
             }

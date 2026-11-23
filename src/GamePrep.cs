@@ -28,63 +28,60 @@ static class GamePrep
         if (o.Groups.Count > 0)
         {
             int closed = ProcessKiller.Close(o.Groups, status);
-            full.AppendLine($"Processes closed: {closed}.");
-            brief.Append($"Processes closed: {closed}. ");
+            full.AppendLine(L.F("Processes closed: {0}.", closed));
+            brief.Append(L.F("Processes closed: {0}.", closed) + " ");
         }
 
         if (o.BackgroundIds is { Count: > 0 } ids)
         {
-            status("Pausing Windows background services…");
+            status(L.T("Pausing Windows background services…"));
             var before = BackgroundServices.LoadState().Select(e => e.Id).ToHashSet();
             var (ok, errors) = BackgroundServices.Apply(ids, PauseMode.Temporary);
             pausedIds = BackgroundServices.LoadState().Select(e => e.Id).Where(id => !before.Contains(id)).ToList();
-            full.AppendLine($"Background services paused: {ok}" +
-                            (errors.Count > 0 ? $", failed: {string.Join("; ", errors)}" : "") +
-                            ". To restore them, use the Background services section or the tray menu.");
-            brief.Append($"Background services paused: {ok}. ");
+            full.AppendLine(L.F("Background services paused: {0}.", ok) + (errors.Count > 0 ? " " + L.F("Failed: {0}", string.Join("; ", errors)) : "") + " " + L.T("To restore them, use the Background services section or the tray menu."));
+            brief.Append(L.F("Background services paused: {0}.", ok) + " ");
             if (errors.Count > 0) warn = true;
         }
 
         if (o.DnsAndTemp)
         {
-            status("Flushing DNS and cleaning TEMP…");
+            status(L.T("Flushing DNS and cleaning TEMP…"));
             bool dns = SystemTweaks.FlushDns();
             var (files, bytes) = SystemTweaks.CleanTemp();
-            full.AppendLine($"DNS cache {(dns ? "flushed" : "not flushed")}, files deleted from TEMP: {files} ({Native.Mb(bytes)}).");
+            full.AppendLine(L.F(dns ? "DNS cache flushed, files deleted from TEMP: {0} ({1})." : "DNS cache not flushed, files deleted from TEMP: {0} ({1}).", files, Native.Mb(bytes)));
         }
 
         if (o.RestartExplorer)
         {
-            status("Restarting File Explorer…");
+            status(L.T("Restarting File Explorer…"));
             bool ok = SystemTweaks.RestartExplorer();
-            full.AppendLine(ok ? "File Explorer restarted." : "Could not restart File Explorer (see the log).");
+            full.AppendLine(ok ? L.T("File Explorer restarted.") : L.T("Could not restart File Explorer (see the log)."));
             if (!ok) warn = true;
         }
 
         if (o.FreeMemory)
         {
-            status("Freeing up RAM…");
+            status(L.T("Freeing up RAM…"));
             var r = MemoryCleaner.Clean();
-            full.AppendLine($"Free RAM: {MemoryCleaner.Fmt(r.Before?.FreeBytes)} → {MemoryCleaner.Fmt(r.After?.FreeBytes)}, " +
-                            $"standby: {MemoryCleaner.Fmt(r.Before?.StandbyBytes)} → {MemoryCleaner.Fmt(r.After?.StandbyBytes)}.");
-            brief.Append($"Free RAM: {MemoryCleaner.Fmt(r.Before?.FreeBytes)} → {MemoryCleaner.Fmt(r.After?.FreeBytes)}. ");
+            full.AppendLine(L.F("Free RAM: {0} → {1}, standby: {2} → {3}.", MemoryCleaner.Fmt(r.Before?.FreeBytes), MemoryCleaner.Fmt(r.After?.FreeBytes), MemoryCleaner.Fmt(r.Before?.StandbyBytes), MemoryCleaner.Fmt(r.After?.StandbyBytes)));
+            brief.Append(L.F("Free RAM: {0} → {1}.", MemoryCleaner.Fmt(r.Before?.FreeBytes), MemoryCleaner.Fmt(r.After?.FreeBytes)) + " ");
             if (r.Errors.Count > 0)
             {
-                full.AppendLine("Memory cleanup errors: " + string.Join("; ", r.Errors));
+                full.AppendLine(L.F("Memory cleanup errors: {0}", string.Join("; ", r.Errors)));
                 warn = true;
             }
 
-            full.Append($"Nonpaged pool: {Native.Mb(r.NonpagedPool)}.");
+            full.Append(L.F("Nonpaged pool: {0}.", Native.Mb(r.NonpagedPool)));
             if (r.NonpagedPool > NonpagedWarnBytes)
             {
-                const string leak = " That is high: a driver is probably leaking memory, and only a reboot will reclaim it.";
+                var leak = " " + L.T("That is high: a driver is probably leaking memory, and only a reboot will reclaim it.");
                 full.Append(leak);
                 brief.Append(leak);
                 warn = true;
             }
         }
 
-        if (brief.Length == 0) brief.Append("Done.");
+        if (brief.Length == 0) brief.Append(L.T("Done."));
         return new PrepResult(full.ToString().Trim(), brief.ToString().Trim(), warn, pausedIds);
     }
 }

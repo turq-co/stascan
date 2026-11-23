@@ -1,4 +1,5 @@
 using System.Drawing.Drawing2D;
+using System.Globalization;
 using System.Runtime;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
@@ -14,45 +15,27 @@ sealed class TrayContext : ApplicationContext
     readonly GameWatcher _games;
     readonly MetricsHistory _metrics = new();
     readonly Hotkeys _hotkeys;
-    UpdateInfo? _pendingUpdate;
-    readonly ToolStripMenuItem _gameModeItem;
     readonly AppServices _app;
-    readonly ToolStripMenuItem _servicesMenu;
     readonly SynchronizationContext _ui;
+    ToolStripMenuItem _gameModeItem = null!;
+    ToolStripMenuItem _servicesMenu = null!;
+    UpdateInfo? _pendingUpdate;
     Baseline _baseline;
     MainForm? _main;
 
     public TrayContext()
     {
         Theme.Set(_settings.Theme);
+        L.Set(_settings.Language);
         (_baseline, bool reused) = Baseline.LoadOrTake();
 
         _menu = new ContextMenuStrip { Renderer = Theme.MenuRenderer() };
-        var prepare = new ToolStripMenuItem("Game prep…", null, (_, _) => Open(Page.Prepare))
-        {
-            Font = new Font(SystemFonts.MenuFont ?? Control.DefaultFont, FontStyle.Bold),
-        };
-        _servicesMenu = new ToolStripMenuItem("Background services");
-        _servicesMenu.DropDownItems.Add("…"); // placeholder so the submenu arrow is shown
-        _servicesMenu.DropDownOpening += (_, _) => BuildServicesMenu();
-
-        _gameModeItem = new ToolStripMenuItem("Game mode", null, (_, _) => ToggleGameMode());
         _menu.Opening += (_, _) =>
         {
             _gameModeItem.Checked = _settings.GameMode;
-            _gameModeItem.Text = _games?.ActiveGame is { } g ? $"Game mode (active: {g})" : "Game mode";
+            _gameModeItem.Text = _games?.ActiveGame is { } g ? L.F("Game mode (active: {0})", g) : L.T("Game mode");
         };
-
-        _menu.Items.Add(prepare);
-        _menu.Items.Add(_gameModeItem);
-        _menu.Items.Add(_servicesMenu);
-        _menu.Items.Add("Diagnostics…", null, (_, _) => Open(Page.Diagnostics));
-        _menu.Items.Add("Mouse and keyboard USB ports…", null, (_, _) => Open(Page.Usb));
-        _menu.Items.Add(new ToolStripSeparator());
-        _menu.Items.Add("Open StaScan", null, (_, _) => Open(Page.Prepare));
-        _menu.Items.Add("Settings…", null, (_, _) => Open(Page.Settings));
-        _menu.Items.Add(new ToolStripSeparator());
-        _menu.Items.Add("Exit", null, (_, _) => ExitThread());
+        BuildMenu();
 
         _tray = new NotifyIcon
         {
@@ -72,13 +55,6 @@ sealed class TrayContext : ApplicationContext
 
         _app = new AppServices
         {
-            GameModeSettingsChanged = () => _games.Update(),
-            Metrics = _metrics,
-            SetHotkeys = SetHotkeys,
-            PendingUpdate = () => _pendingUpdate,
-            SetPendingUpdate = u => _pendingUpdate = u,
-            HotkeyFailures = () => _hotkeys.Failed.ToList(),
-            GetActiveGame = () => (_games.ActiveGame, _games.ActiveSince),
             Settings = _settings,
             GetBaseline = () => _baseline,
             RetakeBaseline = RetakeBaseline,
@@ -86,6 +62,14 @@ sealed class TrayContext : ApplicationContext
             Notify = Notify,
             Cs2SettingChanged = () => { _affinity.Update(); if (_settings.Cs2SkipCpu0) Task.Run(_affinity.Tick); },
             ChangeTheme = ChangeTheme,
+            ChangeLanguage = ChangeLanguage,
+            GameModeSettingsChanged = () => _games.Update(),
+            GetActiveGame = () => (_games.ActiveGame, _games.ActiveSince),
+            Metrics = _metrics,
+            SetHotkeys = SetHotkeys,
+            HotkeyFailures = () => _hotkeys.Failed.ToList(),
+            PendingUpdate = () => _pendingUpdate,
+            SetPendingUpdate = u => _pendingUpdate = u,
         };
 
         _games.StateChanged += _app.RaiseGameModeChanged;
@@ -98,8 +82,8 @@ sealed class TrayContext : ApplicationContext
 
         if (!reused && Environment.TickCount64 > TimeSpan.FromMinutes(10).TotalMilliseconds)
         {
-            Notify("The snapshot was taken now rather than at sign-in, so programs that are already open count as clean. " +
-                   "Turn on \"Start with Windows\" in Settings.", ToolTipIcon.Info);
+            Notify(L.T("The snapshot was taken now rather than at sign-in, so programs that are already open count as clean. Turn on \"Start with Windows\" in Settings."),
+                ToolTipIcon.Info);
         }
 
         // Explorer registers the tray entry a moment after the icon appears, then we can promote it
@@ -110,6 +94,31 @@ sealed class TrayContext : ApplicationContext
 
         // right after startup, give the memory used during initialization back to the system
         TrimMemory();
+    }
+
+    /// <summary>Builds the tray menu. Called again when the UI language changes.</summary>
+    void BuildMenu()
+    {
+        _menu.Items.Clear();
+        var prepare = new ToolStripMenuItem(L.T("Game prep…"), null, (_, _) => Open(Page.Prepare))
+        {
+            Font = new Font(SystemFonts.MenuFont ?? Control.DefaultFont, FontStyle.Bold),
+        };
+        _gameModeItem = new ToolStripMenuItem(L.T("Game mode"), null, (_, _) => ToggleGameMode());
+        _servicesMenu = new ToolStripMenuItem(L.T("Background services"));
+        _servicesMenu.DropDownItems.Add("…"); // placeholder so the submenu arrow is shown
+        _servicesMenu.DropDownOpening += (_, _) => BuildServicesMenu();
+
+        _menu.Items.Add(prepare);
+        _menu.Items.Add(_gameModeItem);
+        _menu.Items.Add(_servicesMenu);
+        _menu.Items.Add(L.T("Diagnostics…"), null, (_, _) => Open(Page.Diagnostics));
+        _menu.Items.Add(L.T("Mouse and keyboard USB ports…"), null, (_, _) => Open(Page.Usb));
+        _menu.Items.Add(new ToolStripSeparator());
+        _menu.Items.Add(L.T("Open StaScan"), null, (_, _) => Open(Page.Prepare));
+        _menu.Items.Add(L.T("Settings…"), null, (_, _) => Open(Page.Settings));
+        _menu.Items.Add(new ToolStripSeparator());
+        _menu.Items.Add(L.T("Exit"), null, (_, _) => ExitThread());
     }
 
     /// <summary>Once a day, 30 seconds after start, look for a newer release on GitHub.</summary>
@@ -125,7 +134,7 @@ sealed class TrayContext : ApplicationContext
             if (update == null) return;
             _pendingUpdate = update;
             Log.Write($"Update available: {update.Tag}");
-            Notify($"StaScan {update.Version.ToString(3)} is available. Click here to update.", ToolTipIcon.Info);
+            Notify(L.F("StaScan {0} is available. Click here to update.", update.Version.ToString(3)), ToolTipIcon.Info);
         }
         catch (Exception ex)
         {
@@ -145,13 +154,13 @@ sealed class TrayContext : ApplicationContext
                 ToggleGameMode();
                 break;
             case Hotkeys.Action.QuickBoost:
-                Notify("Quick boost: freeing RAM…", ToolTipIcon.Info);
+                Notify(L.T("Quick boost: freeing RAM…"), ToolTipIcon.Info);
                 var options = new PrepOptions(new(), FreeMemory: true, RestartExplorer: false, DnsAndTemp: false,
                     BackgroundIds: _settings.PauseBackground ? _settings.BackgroundItemIds.ToList() : null);
                 Task.Run(() =>
                 {
                     var r = GamePrep.Run(options, _ => { });
-                    _ui.Post(_ => Notify("Quick boost done. " + r.Brief, r.Warn ? ToolTipIcon.Warning : ToolTipIcon.Info), null);
+                    _ui.Post(_ => Notify(L.T("Quick boost done.") + " " + r.Brief, r.Warn ? ToolTipIcon.Warning : ToolTipIcon.Info), null);
                 });
                 break;
         }
@@ -174,8 +183,8 @@ sealed class TrayContext : ApplicationContext
         _app.RaiseGameModeChanged();
         Log.Write($"Game mode {(_settings.GameMode ? "on" : "off")} (tray)");
         Notify(_settings.GameMode
-            ? $"Game mode on. Waiting for: {string.Join(", ", _settings.Games)}."
-            : "Game mode off.", ToolTipIcon.Info);
+            ? L.F("Game mode on. Waiting for: {0}.", string.Join(", ", _settings.Games))
+            : L.T("Game mode off."), ToolTipIcon.Info);
     }
 
     void Open(Page page)
@@ -199,10 +208,27 @@ sealed class TrayContext : ApplicationContext
         ApplyTheme(reopenAt);
     }
 
+    void ChangeLanguage(UiLanguage language, Page reopenAt)
+    {
+        _settings.Language = language;
+        _settings.Save();
+        L.Set(language);
+        Log.Write($"UI language: {L.Code}");
+        BuildMenu();
+        UpdateTooltip();
+        ReopenWindow(reopenAt);
+    }
+
     void ApplyTheme(Page? reopenAt)
     {
         Theme.Set(_settings.Theme);
         _menu.Renderer = Theme.MenuRenderer();
+        ReopenWindow(reopenAt);
+    }
+
+    /// <summary>Recreates the main window in place (after a theme or language change).</summary>
+    void ReopenWindow(Page? reopenAt)
+    {
         if (_main is { IsDisposed: false } main && !main.IsBusy)
         {
             var bounds = main.Bounds;
@@ -241,17 +267,17 @@ sealed class TrayContext : ApplicationContext
             {
                 if (group != null) items.Add(new ToolStripSeparator());
                 group = item.Group;
-                items.Add(new ToolStripLabel(group) { Font = Theme.Small });
+                items.Add(new ToolStripLabel(L.T(group)) { Font = Theme.Small });
             }
             var status = BackgroundServices.GetStatus(item, state);
-            var mi = new ToolStripMenuItem(item.Title + (status == BgStatus.Active ? "" : $"   ({BackgroundServices.StatusText(status)})"))
+            var mi = new ToolStripMenuItem(L.T(item.Title) + (status == BgStatus.Active ? "" : $"   ({BackgroundServices.StatusText(status)})"))
             {
                 Checked = status == BgStatus.Active,
                 ToolTipText = status switch
                 {
-                    BgStatus.Active => "Running. Click to pause for this gaming session",
-                    BgStatus.OffInWindows => "Disabled outside StaScan. Click to enable it with the Windows default",
-                    _ => "Click to restore",
+                    BgStatus.Active => L.T("Running. Click to pause for this gaming session"),
+                    BgStatus.OffInWindows => L.T("Disabled outside StaScan. Click to enable it with the Windows default"),
+                    _ => L.T("Click to restore"),
                 },
             };
             var id = item.Id;
@@ -261,33 +287,33 @@ sealed class TrayContext : ApplicationContext
 
         items.Add(new ToolStripSeparator());
 
-        var permanent = new ToolStripMenuItem("Disable permanently");
+        var permanent = new ToolStripMenuItem(L.T("Disable permanently"));
         foreach (var item in available.Where(i => BackgroundServices.GetStatus(i, state) is BgStatus.Active or BgStatus.PausedForGame))
         {
             var it = item;
-            permanent.DropDownItems.Add(it.Title, null, async (_, _) =>
+            permanent.DropDownItems.Add(L.T(it.Title), null, async (_, _) =>
             {
-                if (MessageBox.Show($"\"{it.Title}\" will be disabled and will stay off after a reboot until you restore it. Continue?",
+                if (MessageBox.Show(L.F("\"{0}\" will be disabled and will stay off after a reboot until you restore it. Continue?", L.T(it.Title)),
                         "StaScan", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
                 var (_, errors) = await Task.Run(() => BackgroundServices.Apply(new[] { it.Id }, PauseMode.Permanent));
-                Notify(errors.Count > 0 ? $"Failed: {errors[0]}" : $"{it.Title}: disabled permanently",
+                Notify(errors.Count > 0 ? L.F("Failed: {0}", errors[0]) : L.F("{0}: disabled permanently", L.T(it.Title)),
                     errors.Count > 0 ? ToolTipIcon.Warning : ToolTipIcon.Info);
             });
         }
         permanent.Enabled = permanent.DropDownItems.Count > 0;
         items.Add(permanent);
 
-        items.Add(new ToolStripMenuItem("Pause marked items for this session", null, async (_, _) =>
+        items.Add(new ToolStripMenuItem(L.T("Pause marked items for this session"), null, async (_, _) =>
         {
             var (ok, errors) = await Task.Run(() => BackgroundServices.Apply(_settings.BackgroundItemIds, PauseMode.Temporary));
-            Notify($"Paused: {ok}." + (errors.Count > 0 ? $" Failed: {string.Join("; ", errors)}" : ""),
+            Notify(L.F("Paused: {0}.", ok) + (errors.Count > 0 ? " " + L.F("Failed: {0}", string.Join("; ", errors)) : ""),
                 errors.Count > 0 ? ToolTipIcon.Warning : ToolTipIcon.Info);
         }));
-        items.Add(new ToolStripMenuItem("Restore all", null, async (_, _) => await RestoreBackground())
+        items.Add(new ToolStripMenuItem(L.T("Restore all"), null, async (_, _) => await RestoreBackground())
         {
             Enabled = state.Count > 0,
         });
-        items.Add(new ToolStripMenuItem("Open list…", null, (_, _) => Open(Page.Services)));
+        items.Add(new ToolStripMenuItem(L.T("Open list…"), null, (_, _) => Open(Page.Services)));
     }
 
     async Task RunToggle(string id)
@@ -300,14 +326,14 @@ sealed class TrayContext : ApplicationContext
         catch (Exception ex)
         {
             Log.Write($"Tray: toggling {id} failed: {ex.Message}");
-            Notify("Failed: " + ex.Message, ToolTipIcon.Warning);
+            Notify(L.F("Failed: {0}", ex.Message), ToolTipIcon.Warning);
         }
     }
 
     async Task RestoreBackground()
     {
         var (ok, errors) = await Task.Run(() => BackgroundServices.Restore());
-        Notify($"Background services restored: {ok}." + (errors.Count > 0 ? $" Failed: {string.Join("; ", errors)}" : ""),
+        Notify(L.F("Background services restored: {0}.", ok) + (errors.Count > 0 ? " " + L.F("Failed: {0}", string.Join("; ", errors)) : ""),
             errors.Count > 0 ? ToolTipIcon.Warning : ToolTipIcon.Info);
     }
 
@@ -318,8 +344,9 @@ sealed class TrayContext : ApplicationContext
         {
             var (ok, errors) = await Task.Run(() => BackgroundServices.Restore(onlyTemporaryFromOldBoot: true));
             if (ok > 0 || errors.Count > 0)
-                Notify($"Restored background services that were paused for the previous gaming session: {ok}." +
-                       (errors.Count > 0 ? $" Errors: {errors.Count}, see the log." : ""), errors.Count > 0 ? ToolTipIcon.Warning : ToolTipIcon.Info);
+                Notify(L.F("Restored background services that were paused for the previous gaming session: {0}.", ok) +
+                       (errors.Count > 0 ? " " + L.F("Errors: {0}, see the log.", errors.Count) : ""),
+                    errors.Count > 0 ? ToolTipIcon.Warning : ToolTipIcon.Info);
         }
         catch (Exception ex)
         {
@@ -332,7 +359,7 @@ sealed class TrayContext : ApplicationContext
         // a retaken snapshot keeps the pinned state, so a pinned snapshot stays pinned
         _baseline = Baseline.Take(pinned: _baseline.Pinned);
         UpdateTooltip();
-        Notify($"New snapshot: {_baseline.Keys.Count} processes now count as clean.", ToolTipIcon.Info);
+        Notify(L.F("New snapshot: {0} processes now count as clean.", _baseline.Keys.Count), ToolTipIcon.Info);
     }
 
     void SetBaselinePinned(bool pinned)
@@ -341,9 +368,13 @@ sealed class TrayContext : ApplicationContext
         UpdateTooltip();
     }
 
-    void UpdateTooltip() => _tray.Text = _baseline.Pinned
-        ? $"StaScan: pinned snapshot from {_baseline.TakenAt.ToString("MMM d", System.Globalization.CultureInfo.InvariantCulture)}"
-        : $"StaScan: snapshot from {_baseline.TakenAt.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)}";
+    void UpdateTooltip()
+    {
+        var text = _baseline.Pinned
+            ? L.F("StaScan: pinned snapshot from {0}", L.Day(_baseline.TakenAt))
+            : L.F("StaScan: snapshot from {0}", _baseline.TakenAt.ToString("HH:mm", CultureInfo.InvariantCulture));
+        _tray.Text = text.Length > 127 ? text[..127] : text;
+    }
 
     void Notify(string text, ToolTipIcon icon)
     {

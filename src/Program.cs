@@ -22,10 +22,11 @@ static class Program
             return RunCommand(args[0]);
 
         ApplicationConfiguration.Initialize();
+        L.Set(Settings.Load().Language);
 
         if (AlreadyRunning())
         {
-            MessageBox.Show("StaScan is already running. Look for its icon in the notification area next to the clock.", "StaScan",
+            MessageBox.Show(L.T("StaScan is already running. Look for its icon in the notification area next to the clock."), "StaScan",
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             return 0;
         }
@@ -115,7 +116,7 @@ static class Program
         }
         catch (Win32Exception)
         {
-            MessageBox.Show("StaScan needs administrator rights to close processes and free memory.",
+            MessageBox.Show(L.T("StaScan needs administrator rights to close processes and free memory."),
                 "StaScan", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
